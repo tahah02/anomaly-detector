@@ -52,9 +52,6 @@ This system provides enterprise-grade fraud detection for banking transactions u
 │  • Transaction Logs  • Configuration  • Drift Results           │
 └─────────────────────────────────────────────────────────────────┘
 ```
-
----
-
 ## 📋 Prerequisites
 
 ### Software Requirements
