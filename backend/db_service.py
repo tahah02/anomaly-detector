@@ -265,15 +265,35 @@ class DatabaseService:
                     "current_month_spending": 0.0
                 }
             
-            avg_amount = float(df['AmountInAed'].mean())
-            std_amount = float(df['AmountInAed'].std()) if len(df) > 1 else 2000.0
-            max_amount = float(df['AmountInAed'].max())
-            txn_count = len(df)
+            if 'CreateDate' in df.columns:
+                df['CreateDate'] = pd.to_datetime(df['CreateDate'])
+                current_month_start = pd.Timestamp(datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0))
+                historical_df = df[df['CreateDate'] < current_month_start].copy()
+                
+                if len(historical_df) > 0:
+                    historical_df['AmountInAed'] = historical_df['AmountInAed'].astype(float)
+                    avg_amount = float(historical_df['AmountInAed'].mean())
+                    std_amount = float(historical_df['AmountInAed'].std()) if len(historical_df) > 1 else 2000.0
+                    max_amount = float(historical_df['AmountInAed'].max())
+                    txn_count = len(historical_df)
+                    logger.info(f"Using {len(historical_df)} historical transactions for threshold calculation")
+                else:
+                    logger.warning(f"No historical data found for customer {customer_id}, using defaults")
+                    avg_amount = 5000.0
+                    std_amount = 2000.0
+                    max_amount = 15000.0
+                    txn_count = 0
+            else:
+                df['AmountInAed'] = df['AmountInAed'].astype(float)
+                avg_amount = float(df['AmountInAed'].mean())
+                std_amount = float(df['AmountInAed'].std()) if len(df) > 1 else 2000.0
+                max_amount = float(df['AmountInAed'].max())
+                txn_count = len(df)
             
             intl_ratio = 0.0
             if 'TransferType' in df.columns:
                 intl_count = len(df[df['TransferType'] == 'S'])
-                intl_ratio = intl_count / txn_count if txn_count > 0 else 0.0
+                intl_ratio = intl_count / len(df) if len(df) > 0 else 0.0
             
             current_month_spending = self.get_monthly_spending(customer_id, account_no, transfer_type)
             
@@ -286,7 +306,7 @@ class DatabaseService:
                 "current_month_spending": float(current_month_spending)
             }
         except Exception as e:
-            logger.error(f"Error getting user statistics: {e}")
+            logger.error(f"Error getting user statistics: {e}", exc_info=True)
             return {
                 "user_avg_amount": 5000.0,
                 "user_std_amount": 2000.0,

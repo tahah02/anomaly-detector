@@ -2,40 +2,157 @@
 
 @{
     ViewData["Title"] = "Model Versions";
+    var versionsJson = ViewBag.VersionsJson as string;
+    var currentVersion = ViewBag.CurrentVersion as string;
 }
 
 <div class="container-fluid mt-4">
     <h1>Model Versions</h1>
     
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            <strong>Success!</strong> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            <strong>Error!</strong> @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-warning">@ViewBag.Error</div>
+    }
+    
+    @if (!string.IsNullOrEmpty(currentVersion))
+    {
+        <div class="alert alert-info">
+            <strong>Current Active Version:</strong> <span class="badge bg-success">@currentVersion</span>
+        </div>
+    }
+    
     <table class="table table-striped table-hover">
         <thead class="table-dark">
             <tr>
-                <th>Model Name</th>
                 <th>Version</th>
                 <th>Status</th>
-                <th>Accuracy</th>
-                <th>Precision</th>
-                <th>Recall</th>
-                <th>F1 Score</th>
-                <th>Deployed</th>
+                <th>Isolation Forest</th>
+                <th>Autoencoder</th>
+                <th>Created Date</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var item in Model)
+            @if (!string.IsNullOrEmpty(versionsJson))
+            {
+                var versionsData = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(versionsJson);
+                var versions = versionsData.GetProperty("versions");
+                
+                foreach (var versionElement in versions.EnumerateArray())
+                {
+                    var version = versionElement.GetProperty("version").GetString();
+                    var isActive = versionElement.GetProperty("is_active").GetBoolean();
+                    var hasIF = versionElement.GetProperty("has_isolation_forest").GetBoolean();
+                    var hasAE = versionElement.GetProperty("has_autoencoder").GetBoolean();
+                    
+                    string? createdDate = null;
+                    if (hasIF && versionElement.TryGetProperty("isolation_forest_metadata", out var ifMeta) && ifMeta.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    {
+                        if (ifMeta.TryGetProperty("timestamp", out var timestamp))
+                        {
+                            createdDate = timestamp.GetString();
+                        }
+                    }
+                    
+                    <tr class="@(isActive ? "table-success" : "")">
+                        <td>
+                            <strong>@(version == "base" ? "Base (Original)" : version)</strong>
+                            @if (isActive)
+                            {
+                                <span class="badge bg-success ms-2">ACTIVE</span>
+                            }
+                        </td>
+                        <td>
+                            @if (hasIF && hasAE)
+                            {
+                                <span class="badge bg-success">Complete</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning">Incomplete</span>
+                            }
+                        </td>
+                        <td>
+                            @if (hasIF)
+                            {
+                                <i class="bi bi-check-circle-fill text-success"></i> @("Available")
+                            }
+                            else
+                            {
+                                <i class="bi bi-x-circle-fill text-danger"></i> @("Missing")
+                            }
+                        </td>
+                        <td>
+                            @if (hasAE)
+                            {
+                                <i class="bi bi-check-circle-fill text-success"></i> @("Available")
+                            }
+                            else
+                            {
+                                <i class="bi bi-x-circle-fill text-danger"></i> @("Missing")
+                            }
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(createdDate))
+                            {
+                                @DateTime.Parse(createdDate).ToString("yyyy-MM-dd HH:mm")
+                            }
+                            else if (version == "base")
+                            {
+                                <span class="text-muted">Original</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">N/A</span>
+                            }
+                        </td>
+                        <td>
+                            @if (!isActive && hasIF && hasAE)
+                            {
+                                <form method="post" asp-action="ActivateModelVersion" style="display:inline;">
+                                    <input type="hidden" name="version" value="@version" />
+                                    <button type="submit" class="btn btn-primary btn-sm" 
+                                            onclick="return confirm('Activate version @version? API restart required.');">
+                                        <i class="bi bi-check-circle"></i> Activate
+                                    </button>
+                                </form>
+                            }
+                            else if (isActive)
+                            {
+                                <button class="btn btn-success btn-sm" disabled>
+                                    <i class="bi bi-check-circle-fill"></i> Active
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-secondary btn-sm" disabled>
+                                    <i class="bi bi-exclamation-triangle"></i> Incomplete
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+            else
             {
                 <tr>
-                    <td>@item.ModelName</td>
-                    <td>@item.VersionNumber</td>
-                    <td>
-                        <span class="badge bg-@(item.IsActive ? "success" : "secondary")">
-                            @(item.IsActive ? "ACTIVE" : "INACTIVE")
-                        </span>
-                    </td>
-                    <td>@(item.Accuracy?.ToString("P2") ?? "N/A")</td>
-                    <td>@(item.Precision?.ToString("P2") ?? "N/A")</td>
-                    <td>@(item.Recall?.ToString("P2") ?? "N/A")</td>
-                    <td>@(item.F1Score?.ToString("P2") ?? "N/A")</td>
-                    <td>@(item.DeployedAt?.ToString("yyyy-MM-dd") ?? "Not deployed")</td>
+                    <td colspan="6" class="text-center text-muted">No versions available</td>
                 </tr>
             }
         </tbody>

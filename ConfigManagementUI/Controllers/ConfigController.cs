@@ -88,11 +88,106 @@ namespace ConfigManagementUI.Controllers
 
         public async Task<IActionResult> ModelVersions()
         {
-            var models = await _context.ModelVersionConfig
-                .OrderByDescending(m => m.CreatedAt)
-                .ToListAsync();
+            try
+            {
+                var pythonScriptPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "list_model_versions.py");
+                var processInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = $"\"{pythonScriptPath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
 
+                using var process = System.Diagnostics.Process.Start(processInfo);
+                if (process != null)
+                {
+                    var output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
+                    {
+                        var result = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(output);
+                        ViewBag.VersionsJson = output;
+                        ViewBag.CurrentVersion = result.GetProperty("current_version").GetString();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting versions: {ex.Message}");
+                ViewBag.Error = "Failed to load model versions";
+            }
+
+            var models = await _context.ModelVersionConfig.OrderByDescending(m => m.CreatedAt).ToListAsync();
             return View(models);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ActivateModelVersion(string version)
+        {
+            try
+            {
+                var pythonScriptPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "activate_model_version.py");
+                var processInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = $"\"{pythonScriptPath}\" {version}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = System.Diagnostics.Process.Start(processInfo);
+                if (process == null)
+                {
+                    TempData["ErrorMessage"] = "Failed to start activation process";
+                    return RedirectToAction("ModelVersions");
+                }
+
+                var output = await process.StandardOutput.ReadToEndAsync();
+                var error = await process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+
+                if (process.ExitCode == 0)
+                {
+                    var allVersions = await _context.ModelVersionConfig.ToListAsync();
+                    foreach (var v in allVersions)
+                    {
+                        v.IsActive = v.VersionNumber == version;
+                    }
+                    
+                    if (!allVersions.Any(v => v.VersionNumber == version))
+                    {
+                        _context.ModelVersionConfig.Add(new ModelVersionConfig
+                        {
+                            ModelName = version == "base" ? "Base Model" : "Hybrid Model",
+                            VersionNumber = version,
+                            IsActive = true,
+                            CreatedAt = DateTime.Now,
+                            DeployedAt = DateTime.Now
+                        });
+                    }
+                    
+                    await _context.SaveChangesAsync();
+                    TempData["SuccessMessage"] = $"Version {version} activated! Restart API to apply changes.";
+                }
+                else
+                {
+                    _logger.LogError($"Activation failed: {error}");
+                    TempData["ErrorMessage"] = $"Activation failed: {error}";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error activating version: {ex.Message}");
+                TempData["ErrorMessage"] = $"Error: {ex.Message}";
+            }
+
+            return RedirectToAction("ModelVersions");
         }
 
         public async Task<IActionResult> TrainingRuns()
