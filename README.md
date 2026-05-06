@@ -22,34 +22,34 @@ This system provides enterprise-grade fraud detection for banking transactions u
 ┌─────────────────────────────────────────────────────────────────┐
 │                    FastAPI Backend (Port 8000)                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │ Rule Engine  │  │ Isolation    │  │ Autoencoder  │         │
-│  │ • Velocity   │  │ Forest       │  │ Deep Learning│         │
-│  │ • Thresholds │  │ Anomaly Det. │  │ Pattern Rec. │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ Rule Engine  │  │ Isolation    │  │ Autoencoder  │           │
+│  │ • Velocity   │  │ Forest       │  │ Deep Learning│           │
+│  │ • Thresholds │  │ Anomaly Det. │  │ Pattern Rec. │           │
+│  └──────────────┘  └──────────────┘  └──────────────┘           │
 │                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │         NannyML Drift Monitoring                         │  │
-│  │  • Univariate Drift  • Multivariate Drift               │  │
-│  │  • Concept Drift     • Performance Estimation           │  │
-│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │         NannyML Drift Monitoring                         │   │
+│  │  • Univariate Drift  • Multivariate Drift                │   │
+│  │  • Concept Drift     • Performance Estimation            │   │
+│  └──────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │         MLOps Pipeline                                   │  │
-│  │  • Auto Retraining  • Versioning  • Scheduler           │  │
-│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │         MLOps Pipeline                                   │   │
+│  │  • Auto Retraining  • Versioning  • Scheduler            │   │
+│  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                               ↕
 ┌─────────────────────────────────────────────────────────────────┐
 │              ASP.NET Core UI (Port 5202)                        │
 ├─────────────────────────────────────────────────────────────────┤
-│  • Dashboard  • Features  • Thresholds  • Scheduler            │
-│  • Drift Monitoring  • Customer Configs  • Model Versions      │
+│  • Dashboard  • Features  • Thresholds  • Scheduler             │
+│  • Drift Monitoring  • Customer Configs  • Model Versions       │
 └─────────────────────────────────────────────────────────────────┘
                               ↕
 ┌─────────────────────────────────────────────────────────────────┐
 │              SQL Server Database + Redis Cache                  │
-│  • Transaction Logs  • Configuration  • Drift Results          │
+│  • Transaction Logs  • Configuration  • Drift Results           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
