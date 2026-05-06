@@ -714,15 +714,9 @@ Solution: Train models first using train_*.py scripts
 
 ---
 
-## 📝 License
-
-[Your License Here]
-
----
-
 ## 👥 Contributors
 
-[Your Team/Contributors Here]
+Muhammad Taha Hussain
 
 ---
 
@@ -730,8 +724,7 @@ Solution: Train models first using train_*.py scripts
 
 For issues and questions:
 - Create an issue in the repository
-- Email: [Your Email]
-- Documentation: [Your Docs URL]
+- Email: muhammadtahahussain020@gmail.com
 
 ---
 
