@@ -2,7 +2,7 @@ import pandas as pd
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
-from backend.db_service import get_db_service
+from backend.db_service import get_db_service, get_param_placeholder
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 class DataFetcher:
     def __init__(self):
         self.db = get_db_service()
+        self.param_placeholder = get_param_placeholder()
     
     def fetch_training_data(self, since_date: Optional[datetime] = None) -> pd.DataFrame:
         try:
@@ -18,7 +19,7 @@ class DataFetcher:
             
             logger.info(f"Fetching training data from TransactionHistoryLogs since {since_date}...")
             
-            query = """
+            query = f"""
                 SELECT 
                     CustomerId, 
                     FromAccountNo, 
@@ -29,7 +30,7 @@ class DataFetcher:
                     ChannelId, 
                     BankCountry
                 FROM TransactionHistoryLogs 
-                WHERE CreateDate >= %s 
+                WHERE CreateDate >= {self.param_placeholder} 
                 AND CreateDate IS NOT NULL 
                 ORDER BY CreateDate DESC
             """

@@ -12,6 +12,7 @@ namespace ConfigManagementUI.Models.DbModels
         public DbSet<ModelVersionConfig> ModelVersionConfig { get; set; }
         public DbSet<ModelTrainingRuns> ModelTrainingRuns { get; set; }
         public DbSet<CustomerAccountTransferTypeConfig> CustomerAccountTransferTypeConfig { get; set; }
+        public DbSet<DriftMonitoringResult> DriftMonitoringResults { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -23,6 +24,7 @@ namespace ConfigManagementUI.Models.DbModels
             modelBuilder.Entity<ModelVersionConfig>().ToTable("ModelVersionConfig").HasKey(x => x.ModelVersionID);
             modelBuilder.Entity<ModelTrainingRuns>().ToTable("ModelTrainingRuns").HasKey(x => x.RunId);
             modelBuilder.Entity<CustomerAccountTransferTypeConfig>().ToTable("CustomerAccountTransferTypeConfig").HasKey(x => x.ConfigID);
+            modelBuilder.Entity<DriftMonitoringResult>().ToTable("DriftMonitoringResults").HasKey(x => x.Id);
         }
     }
 }

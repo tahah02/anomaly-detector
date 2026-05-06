@@ -1,0 +1,194 @@
+@model ConfigManagementUI.Models.ViewModels.DriftMonitoringViewModel
+@{
+    ViewData["Title"] = "Model Drift Monitoring";
+}
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>Model Drift Monitoring</h2>
+            <p class="text-muted">Monitor ML model performance and data drift in real-time</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-@Model.CurrentStatus.StatusClass text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-@Model.CurrentStatus.StatusIcon"></i>
+                        Current Status: @Model.CurrentStatus.OverallStatus
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Last Check:</strong> @Model.CurrentStatus.CheckDate.ToString("yyyy-MM-dd HH:mm:ss")</p>
+                            <p><strong>Drift Detected:</strong> 
+                                @if (Model.CurrentStatus.DriftDetected)
+                                {
+                                    <span class="badge badge-danger">Yes</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-success">No</span>
+                                }
+                            </p>
+                            <p><strong>Drift Score:</strong> @(Model.CurrentStatus.DriftScore?.ToString("F2") ?? "N/A")</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Affected Features:</strong></p>
+                            @if (Model.CurrentStatus.FeaturesAffected != null && Model.CurrentStatus.FeaturesAffected.Any())
+                            {
+                                <ul class="list-unstyled">
+                                    @foreach (var feature in Model.CurrentStatus.FeaturesAffected)
+                                    {
+                                        <li><span class="badge badge-warning">@feature</span></li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No features affected</p>
+                            }
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="alert alert-@Model.CurrentStatus.StatusClass" role="alert">
+                                <strong>Recommendation:</strong> @Model.CurrentStatus.Recommendation
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Actions</h5>
+                </div>
+                <div class="card-body">
+                    <button id="runDriftCheck" class="btn btn-primary btn-block mb-3">
+                        <i class="fas fa-play"></i> Run Drift Check
+                    </button>
+                    <button id="refreshStatus" class="btn btn-secondary btn-block mb-3">
+                        <i class="fas fa-sync"></i> Refresh Status
+                    </button>
+                    <a href="/Config/Retraining" class="btn btn-warning btn-block">
+                        <i class="fas fa-cog"></i> Trigger Retraining
+                    </a>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Status Legend</h5>
+                </div>
+                <div class="card-body">
+                    <p><span class="badge badge-success">HEALTHY</span> No drift detected</p>
+                    <p><span class="badge badge-info">CAUTION</span> Minor drift detected</p>
+                    <p><span class="badge badge-warning">WARNING</span> Significant drift</p>
+                    <p><span class="badge badge-danger">CRITICAL</span> Critical drift</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Drift History</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="driftHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th>Check Date</th>
+                                    <th>Status</th>
+                                    <th>Drift Detected</th>
+                                    <th>Drift Score</th>
+                                    <th>Features Affected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.History != null && Model.History.Any())
+                                {
+                                    @foreach (var item in Model.History)
+                                    {
+                                        <tr>
+                                            <td>@item.CheckDate.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                            <td><span class="badge badge-@item.StatusClass">@item.OverallStatus</span></td>
+                                            <td>
+                                                @if (item.DriftDetected)
+                                                {
+                                                    <i class="fas fa-check-circle text-danger"></i>
+                                                }
+                                                else
+                                                {
+                                                    <i class="fas fa-times-circle text-success"></i>
+                                                }
+                                            </td>
+                                            <td>@(item.DriftScore?.ToString("F2") ?? "N/A")</td>
+                                            <td>@item.FeaturesAffectedCount</td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">No drift history available</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#runDriftCheck').click(function() {
+                var btn = $(this);
+                btn.prop('disabled', true);
+                btn.html('<i class="fas fa-spinner fa-spin"></i> Running...');
+
+                $.ajax({
+                    url: '/Drift/RunCheck',
+                    type: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            alert('Drift check completed successfully!');
+                            location.reload();
+                        } else {
+                            alert('Failed to run drift check: ' + response.message);
+                        }
+                    },
+                    error: function() {
+                        alert('Error running drift check');
+                    },
+                    complete: function() {
+                        btn.prop('disabled', false);
+                        btn.html('<i class="fas fa-play"></i> Run Drift Check');
+                    }
+                });
+            });
+
+            $('#refreshStatus').click(function() {
+                location.reload();
+            });
+
+            $('#driftHistoryTable').DataTable({
+                order: [[0, 'desc']],
+                pageLength: 10
+            });
+        });
+    </script>
+}

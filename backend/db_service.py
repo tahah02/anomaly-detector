@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from typing import Optional, List, Dict, Any
 from queue import Queue, Empty
 import threading
+from datetime import datetime
 
 
 try:
@@ -26,6 +27,9 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def get_param_placeholder():
+    return '?' if DRIVER_TYPE == 'pyodbc' else '%s'
+
 class DatabaseService:
     _pool = None
     _pool_lock = threading.Lock()
@@ -39,6 +43,7 @@ class DatabaseService:
         self.username = os.getenv("DB_USERNAME", "dbuser")
         self.password = os.getenv("DB_PASSWORD", "")
         self.connection = None
+        self.param_placeholder = get_param_placeholder()
         
         if not DatabaseService._pool_initialized:
             with DatabaseService._pool_lock:
@@ -835,6 +840,133 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error calculating monthly limit: {e}")
             return 9000.0
+    
+    def save_drift_results(self, check_date: datetime, drift_type: str, drift_detected: bool, 
+                          drift_score: Optional[float], features_affected: Optional[str],
+                          overall_status: Optional[str], recommendation: Optional[str],
+                          results_json: Optional[str]) -> bool:
+        try:
+            query = f"""
+                INSERT INTO DriftMonitoringResults 
+                (CheckDate, DriftType, DriftDetected, DriftScore, FeaturesAffected, 
+                 OverallStatus, Recommendation, ResultsJson)
+                VALUES ({self.param_placeholder}, {self.param_placeholder}, {self.param_placeholder}, 
+                        {self.param_placeholder}, {self.param_placeholder}, {self.param_placeholder}, 
+                        {self.param_placeholder}, {self.param_placeholder})
+            """
+            
+            self.execute_non_query(query, [
+                check_date, drift_type, drift_detected, drift_score,
+                features_affected, overall_status, recommendation, results_json
+            ])
+            
+            logger.info(f"Drift results saved: {drift_type} - {overall_status}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error saving drift results: {e}")
+            return False
+    
+    def get_latest_drift_status(self) -> Optional[Dict[str, Any]]:
+        try:
+            query = """
+                SELECT TOP 1 
+                    Id, CheckDate, DriftType, DriftDetected, DriftScore,
+                    FeaturesAffected, OverallStatus, Recommendation, ResultsJson
+                FROM DriftMonitoringResults
+                WHERE DriftType = 'full_monitoring'
+                ORDER BY CheckDate DESC
+            """
+            
+            result = self.execute_query(query)
+            
+            if result is not None and len(result) > 0:
+                row = result.iloc[0]
+                return {
+                    'id': int(row['Id']),
+                    'check_date': row['CheckDate'],
+                    'drift_type': row['DriftType'],
+                    'drift_detected': bool(row['DriftDetected']),
+                    'drift_score': float(row['DriftScore']) if row['DriftScore'] is not None else None,
+                    'features_affected': row['FeaturesAffected'],
+                    'overall_status': row['OverallStatus'],
+                    'recommendation': row['Recommendation'],
+                    'results_json': row['ResultsJson']
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting latest drift status: {e}")
+            return None
+    
+    def get_drift_history(self, limit: int = 30) -> List[Dict[str, Any]]:
+        try:
+            query = f"""
+                SELECT TOP {limit}
+                    Id, CheckDate, DriftType, DriftDetected, DriftScore,
+                    FeaturesAffected, OverallStatus, Recommendation
+                FROM DriftMonitoringResults
+                WHERE DriftType = 'full_monitoring'
+                ORDER BY CheckDate DESC
+            """
+            
+            result = self.execute_query(query)
+            
+            if result is not None and len(result) > 0:
+                return [
+                    {
+                        'id': int(row['Id']),
+                        'check_date': row['CheckDate'],
+                        'drift_type': row['DriftType'],
+                        'drift_detected': bool(row['DriftDetected']),
+                        'drift_score': float(row['DriftScore']) if row['DriftScore'] is not None else None,
+                        'features_affected': row['FeaturesAffected'],
+                        'overall_status': row['OverallStatus'],
+                        'recommendation': row['Recommendation']
+                    }
+                    for _, row in result.iterrows()
+                ]
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Error getting drift history: {e}")
+            return []
+    
+    def get_drift_by_date_range(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
+        try:
+            query = f"""
+                SELECT 
+                    Id, CheckDate, DriftType, DriftDetected, DriftScore,
+                    FeaturesAffected, OverallStatus, Recommendation
+                FROM DriftMonitoringResults
+                WHERE CheckDate >= {self.param_placeholder} AND CheckDate <= {self.param_placeholder}
+                ORDER BY CheckDate DESC
+            """
+            
+            result = self.execute_query(query, [start_date, end_date])
+            
+            if result is not None and len(result) > 0:
+                return [
+                    {
+                        'id': int(row['Id']),
+                        'check_date': row['CheckDate'],
+                        'drift_type': row['DriftType'],
+                        'drift_detected': bool(row['DriftDetected']),
+                        'drift_score': float(row['DriftScore']) if row['DriftScore'] is not None else None,
+                        'features_affected': row['FeaturesAffected'],
+                        'overall_status': row['OverallStatus'],
+                        'recommendation': row['Recommendation']
+                    }
+                    for _, row in result.iterrows()
+                ]
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Error getting drift by date range: {e}")
+            return []
 
 db_service = DatabaseService()
 

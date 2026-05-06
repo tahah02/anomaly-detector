@@ -319,3 +319,96 @@ async def trigger_retraining(req: Request):
     verify_basic_auth(req)
     result = run_retraining()
     return {"status": "success" if result else "failed"}
+
+
+@app.get("/api/drift/status")
+def get_drift_status(req: Request):
+    verify_basic_auth(req)
+    try:
+        status = db.get_latest_drift_status()
+        
+        if status is None:
+            return {
+                "status": "no_data",
+                "message": "No drift monitoring results available",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        return {
+            "status": "success",
+            "data": status,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching drift status: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching drift status")
+
+
+@app.post("/api/drift/run")
+async def run_drift_check(req: Request):
+    verify_basic_auth(req)
+    try:
+        from backend.mlops.drift_monitor import get_drift_monitor
+        
+        monitor = get_drift_monitor()
+        results = monitor.run_full_monitoring(reference_days=90, analysis_days=7)
+        
+        if 'error' in results:
+            raise HTTPException(status_code=500, detail=results['error'])
+        
+        overall = results.get('overall_assessment', {})
+        status = overall.get('status', 'UNKNOWN')
+        recommendation = overall.get('recommendation', '')
+        drift_count = overall.get('drift_count', 0)
+        
+        univariate = results.get('univariate_drift', {})
+        features_affected = json.dumps(univariate.get('features_with_drift', []))
+        
+        db.save_drift_results(
+            check_date=datetime.now(),
+            drift_type='full_monitoring',
+            drift_detected=drift_count > 0,
+            drift_score=float(drift_count),
+            features_affected=features_affected,
+            overall_status=status,
+            recommendation=recommendation,
+            results_json=json.dumps(results)
+        )
+        
+        return {
+            "status": "success",
+            "message": "Drift monitoring completed",
+            "results": {
+                "overall_status": status,
+                "drift_detected": drift_count > 0,
+                "drift_count": drift_count,
+                "recommendation": recommendation,
+                "features_affected": univariate.get('features_with_drift', [])
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error running drift check: {e}")
+        raise HTTPException(status_code=500, detail=f"Error running drift check: {str(e)}")
+
+
+@app.get("/api/drift/history")
+def get_drift_history(req: Request, limit: int = 30):
+    verify_basic_auth(req)
+    try:
+        history = db.get_drift_history(limit=limit)
+        
+        return {
+            "status": "success",
+            "data": history,
+            "count": len(history),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching drift history: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching drift history")

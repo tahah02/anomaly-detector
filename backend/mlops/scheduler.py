@@ -5,11 +5,61 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from backend.mlops.retraining_pipeline import run_retraining
 from backend.db_service import get_db_service
+import json
 
 logger = logging.getLogger(__name__)
 
 _scheduler = None
 _current_interval = None
+
+
+def run_drift_monitoring_job():
+    try:
+        logger.info("Starting scheduled drift monitoring...")
+        
+        from backend.mlops.drift_monitor import get_drift_monitor
+        monitor = get_drift_monitor()
+        
+        results = monitor.run_full_monitoring(reference_days=90, analysis_days=7)
+        
+        if 'error' in results:
+            logger.error(f"Drift monitoring failed: {results['error']}")
+            return
+        
+        db = get_db_service()
+        
+        overall = results.get('overall_assessment', {})
+        status = overall.get('status', 'UNKNOWN')
+        recommendation = overall.get('recommendation', '')
+        drift_count = overall.get('drift_count', 0)
+        
+        univariate = results.get('univariate_drift', {})
+        features_affected = json.dumps(univariate.get('features_with_drift', []))
+        
+        db.save_drift_results(
+            check_date=datetime.now(),
+            drift_type='full_monitoring',
+            drift_detected=drift_count > 0,
+            drift_score=float(drift_count),
+            features_affected=features_affected,
+            overall_status=status,
+            recommendation=recommendation,
+            results_json=json.dumps(results)
+        )
+        
+        if status == 'CRITICAL':
+            logger.warning(f"CRITICAL DRIFT DETECTED! {recommendation}")
+        elif status == 'WARNING':
+            logger.warning(f"WARNING: Drift detected. {recommendation}")
+        elif status == 'CAUTION':
+            logger.info(f"CAUTION: Minor drift detected. {recommendation}")
+        else:
+            logger.info(f"Drift monitoring complete. Status: {status}")
+        
+    except Exception as e:
+        logger.error(f"Error in drift monitoring job: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 class MLOpsScheduler:
@@ -155,17 +205,23 @@ def get_scheduler() -> MLOpsScheduler:
 def start_scheduler():
     scheduler = get_scheduler()
     
-    # Read scheduler times from database
     try:
         db = get_db_service()
         query = """
             SELECT WeeklyJobDay, WeeklyJobHour, WeeklyJobMinute, 
-                   MonthlyJobDay, MonthlyJobHour, MonthlyJobMinute 
+                   MonthlyJobDay, MonthlyJobHour, MonthlyJobMinute,
+                   IsEnabled
             FROM RetrainingConfig WHERE ConfigId = 1
         """
         result = db.execute_query(query)
         
         if result is not None and not result.empty:
+            is_enabled = bool(result['IsEnabled'].values[0])
+            
+            if not is_enabled:
+                logger.info("Scheduler is disabled in database configuration")
+                return
+            
             weekly_day = int(result['WeeklyJobDay'].values[0])
             weekly_hour = int(result['WeeklyJobHour'].values[0])
             weekly_minute = int(result['WeeklyJobMinute'].values[0])
@@ -174,13 +230,11 @@ def start_scheduler():
             monthly_hour = int(result['MonthlyJobHour'].values[0])
             monthly_minute = int(result['MonthlyJobMinute'].values[0])
         else:
-            # Fallback to defaults if query fails
             weekly_day, weekly_hour, weekly_minute = 0, 2, 0
             monthly_day, monthly_hour, monthly_minute = 1, 3, 0
             logger.warning("Could not read scheduler config from database, using defaults")
     except Exception as e:
         logger.error(f"Error reading scheduler config from database: {e}")
-        # Fallback to defaults
         weekly_day, weekly_hour, weekly_minute = 0, 2, 0
         monthly_day, monthly_hour, monthly_minute = 1, 3, 0
     

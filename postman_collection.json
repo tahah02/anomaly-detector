@@ -1,0 +1,369 @@
+{
+	"info": {
+		"name": "Banking Fraud Detection API",
+		"description": "API for real-time fraud detection using triple-layer security",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "auth_header",
+			"value": "Basic RkRTOjEyMzQ1",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/health",
+					"host": ["{{base_url}}"],
+					"path": ["api", "health"]
+				}
+			}
+		},
+		{
+			"name": "Single Transaction - Approved",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"1000016\",\n    \"from_account_no\": \"011000016033\",\n    \"from_account_currency\": \"AED\",\n    \"to_account_no\": \"011000016019\",\n    \"transaction_amount\": 750,\n    \"transfer_currency\": \"AED\",\n    \"transfer_type\": \"O\",\n    \"charges_type\": \"SHA\",\n    \"swift\": \"DEUTDEFJ\",\n    \"check_constraint\": true,\n    \"bank_country\": \"UAE\",\n    \"idempotence_key\": null\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/analyze-transaction",
+					"host": ["{{base_url}}"],
+					"path": ["api", "analyze-transaction"]
+				}
+			}
+		},
+		{
+			"name": "Single Transaction - Flagged (High Amount)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"1000016\",\n    \"from_account_no\": \"011000016033\",\n    \"from_account_currency\": \"AED\",\n    \"to_account_no\": \"011000016019\",\n    \"transaction_amount\": 50000,\n    \"transfer_currency\": \"AED\",\n    \"transfer_type\": \"S\",\n    \"charges_type\": \"SHA\",\n    \"swift\": \"DEUTDEFJ\",\n    \"check_constraint\": true,\n    \"bank_country\": \"USA\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/analyze-transaction",
+					"host": ["{{base_url}}"],
+					"path": ["api", "analyze-transaction"]
+				}
+			}
+		},
+		{
+			"name": "Single Transaction - Invalid Amount",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"1000016\",\n    \"from_account_no\": \"011000016033\",\n    \"from_account_currency\": \"AED\",\n    \"to_account_no\": \"011000016019\",\n    \"transaction_amount\": -1000,\n    \"transfer_currency\": \"AED\",\n    \"transfer_type\": \"O\",\n    \"charges_type\": \"SHA\",\n    \"swift\": \"DEUTDEFJ\",\n    \"check_constraint\": true,\n    \"bank_country\": \"UAE\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/analyze-transaction",
+					"host": ["{{base_url}}"],
+					"path": ["api", "analyze-transaction"]
+				}
+			}
+		},
+		{
+			"name": "Single Transaction - Invalid Transfer Type",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"1000016\",\n    \"from_account_no\": \"011000016033\",\n    \"from_account_currency\": \"AED\",\n    \"to_account_no\": \"011000016019\",\n    \"transaction_amount\": 750,\n    \"transfer_currency\": \"AED\",\n    \"transfer_type\": \"X\",\n    \"charges_type\": \"SHA\",\n    \"swift\": \"DEUTDEFJ\",\n    \"check_constraint\": true,\n    \"bank_country\": \"UAE\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/analyze-transaction",
+					"host": ["{{base_url}}"],
+					"path": ["api", "analyze-transaction"]
+				}
+			}
+		},
+		{
+			"name": "Check Customer Limits",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"12345\",\n    \"account_no\": \"1001234567\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/check-limits",
+					"host": ["{{base_url}}"],
+					"path": ["api", "check-limits"]
+				}
+			}
+		},
+		{
+			"name": "Get Pending Transactions",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/transactions/pending",
+					"host": ["{{base_url}}"],
+					"path": ["api", "transactions", "pending"]
+				},
+				"description": "Get all transactions that are pending user approval"
+			}
+		},
+		{
+			"name": "Approve Transaction",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"transaction_id\": \"txn_ae837aca\",\n    \"customer_id\": \"1001\",\n    \"admin_key\": \"FDS12345\",\n    \"comments\": \"Yes, this is my transaction\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/transaction/approve",
+					"host": ["{{base_url}}"],
+					"path": ["api", "transaction", "approve"]
+				},
+				"description": "Admin approves transaction. Replace transaction_id with actual ID from pending list."
+			}
+		},
+		{
+			"name": "Reject Transaction",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"transaction_id\": \"txn_xyz123\",\n    \"customer_id\": \"1001\",\n    \"admin_key\": \"FDS12345\",\n    \"reason\": \"I did not make this transaction\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/transaction/reject",
+					"host": ["{{base_url}}"],
+					"path": ["api", "transaction", "reject"]
+				},
+				"description": "Admin rejects transaction. Replace transaction_id with actual ID from pending list."
+			}
+		},
+		{
+			"name": "Get All Features",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/features",
+					"host": ["{{base_url}}"],
+					"path": ["api", "features"]
+				},
+				"description": "Get list of all enabled features"
+			}
+		},
+		{
+			"name": "Enable Feature",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/features/transaction_amount/enable",
+					"host": ["{{base_url}}"],
+					"path": ["api", "features", "transaction_amount", "enable"]
+				},
+				"description": "Enable a specific feature. Replace 'transaction_amount' with feature name."
+			}
+		},
+		{
+			"name": "Disable Feature",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/features/transaction_amount/disable",
+					"host": ["{{base_url}}"],
+					"path": ["api", "features", "transaction_amount", "disable"]
+				},
+				"description": "Disable a specific feature. Replace 'transaction_amount' with feature name."
+			}
+		},
+		{
+			"name": "Trigger Retraining",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/mlops/trigger-retraining",
+					"host": ["{{base_url}}"],
+					"path": ["api", "mlops", "trigger-retraining"]
+				},
+				"description": "Manually trigger model retraining"
+			}
+		},
+		{
+			"name": "Get Drift Status",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/drift/status",
+					"host": ["{{base_url}}"],
+					"path": ["api", "drift", "status"]
+				},
+				"description": "Get current drift monitoring status"
+			}
+		},
+		{
+			"name": "Run Drift Check",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/drift/run",
+					"host": ["{{base_url}}"],
+					"path": ["api", "drift", "run"]
+				},
+				"description": "Manually trigger drift monitoring check"
+			}
+		},
+		{
+			"name": "Get Drift History",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{auth_header}}"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/drift/history?limit=30",
+					"host": ["{{base_url}}"],
+					"path": ["api", "drift", "history"],
+					"query": [
+						{
+							"key": "limit",
+							"value": "30",
+							"description": "Number of records to fetch (default: 30)"
+						}
+					]
+				},
+				"description": "Get historical drift monitoring data"
+			}
+		}
+	]
+}

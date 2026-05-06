@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-05-06T15:13:47.393291",
+  "reference_period_days": 90,
+  "analysis_period_days": 7,
+  "reference_data_size": 262,
+  "analysis_data_size": 39,
+  "univariate_drift": {
+    "timestamp": "2026-05-06T15:13:48.061399",
+    "features_with_drift": [],
+    "drift_scores": {}
+  },
+  "multivariate_drift": {},
+  "concept_drift": {},
+  "performance_estimation": {},
+  "overall_assessment": {
+    "status": "HEALTHY",
+    "drift_indicators": [],
+    "drift_count": 0,
+    "recommendation": "Model performing well, continue monitoring"
+  }
+}

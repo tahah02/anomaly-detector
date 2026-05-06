@@ -51,6 +51,7 @@ def engineer_features(df=None):
     if df['CreateDate'].notna().any():
         if 'hour' in enabled_features:
             df['hour'] = df['CreateDate'].dt.hour.fillna(12).astype(int)
+        df['hour_of_day'] = df['CreateDate'].dt.hour.fillna(12).astype(int)
         if 'day_of_week' in enabled_features:
             df['day_of_week'] = df['CreateDate'].dt.dayofweek.fillna(0).astype(int)
         if 'is_weekend' in enabled_features:
@@ -60,6 +61,7 @@ def engineer_features(df=None):
     else:
         if 'hour' in enabled_features:
             df['hour'] = 12
+        df['hour_of_day'] = 12
         if 'day_of_week' in enabled_features:
             df['day_of_week'] = 0
         if 'is_weekend' in enabled_features:
@@ -114,6 +116,10 @@ def engineer_features(df=None):
             df['time_since_last'] = df.groupby(key)['CreateDate'].diff().dt.total_seconds().fillna(3600)
             if 'recent_burst' in enabled_features:
                 df['recent_burst'] = (df['time_since_last'] < 300).astype(int)
+        
+        df['time_since_last_txn'] = df.groupby(key)['CreateDate'].diff().dt.total_seconds().fillna(3600)
+        df['amount_vs_avg'] = df['transaction_amount'] / df['user_avg_amount'].replace(0, 1)
+        df['amount_vs_median'] = df['transaction_amount'] / df.groupby(key)['transaction_amount'].transform('median').replace(0, 1)
         
         def rolling_count(g, sec):
             t = g['CreateDate'].values
