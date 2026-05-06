@@ -450,7 +450,7 @@ Update `ConfigManagementUI/appsettings.json`:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=YOUR_SERVER,1433;Database=retailchannelLogs;User Id=YOUR_USER;Password=YOUR_PASSWORD;TrustServerCertificate=true;"
+    "DefaultConnection": "Server=YOUR_SERVER,1433;Database=Your_DB_name;User Id=YOUR_USER;Password=YOUR_PASSWORD;TrustServerCertificate=true;"
   },
   "ApiSettings": {
     "BaseUrl": "http://localhost:8000"
