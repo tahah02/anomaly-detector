@@ -1,0 +1,71 @@
+@{
+    ViewData["Title"] = "Configuration Management";
+}
+
+<div class="container-fluid mt-4">
+    <h1>Configuration Management Dashboard</h1>
+    
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Features</h5>
+                    <p class="card-text">Manage feature flags and toggles</p>
+                    <a href="@Url.Action("Features")" class="btn btn-primary">View Features</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Thresholds</h5>
+                    <p class="card-text">Configure risk thresholds and limits</p>
+                    <a href="@Url.Action("Thresholds")" class="btn btn-primary">View Thresholds</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Scheduler</h5>
+                    <p class="card-text">Configure model retraining schedule</p>
+                    <a href="@Url.Action("Scheduler")" class="btn btn-primary">View Scheduler</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Model Versions</h5>
+                    <p class="card-text">Manage deployed models</p>
+                    <a href="@Url.Action("ModelVersions")" class="btn btn-primary">View Models</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Training Runs</h5>
+                    <p class="card-text">View model training history</p>
+                    <a href="@Url.Action("TrainingRuns")" class="btn btn-primary">View Runs</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Customer Configs</h5>
+                    <p class="card-text">Manage customer-specific rules</p>
+                    <a href="@Url.Action("CustomerConfigs")" class="btn btn-primary">View Configs</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,114 @@
+@model RetrainingConfigViewModel
+
+@{
+    ViewData["Title"] = "Scheduler Configuration";
+}
+
+<div class="container-fluid mt-4">
+    <h1>Retraining Scheduler Configuration</h1>
+    
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <strong>Success!</strong> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    
+    <div class="card">
+        <div class="card-body">
+            <form method="post" action="@Url.Action("UpdateScheduler")">
+                <input type="hidden" name="ConfigId" value="@Model.ConfigId" />
+                
+                <!-- Interval Selection -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <h5>Schedule Interval</h5>
+                        <div class="mb-3">
+                            <label class="form-label">Run Frequency</label>
+                            <select class="form-control" name="Interval" id="intervalSelect">
+                                <option value="1D" selected="@(Model.Interval == "1D")">Daily</option>
+                                <option value="1W" selected="@(Model.Interval == "1W")">Weekly</option>
+                                <option value="1M" selected="@(Model.Interval == "1M")">Monthly</option>
+                                <option value="1Y" selected="@(Model.Interval == "1Y")">Yearly</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Weekly Job</h5>
+                        <div class="mb-3">
+                            <label class="form-label">Day</label>
+                            <select class="form-control" name="WeeklyJobDay">
+                                <option value="0" selected="@(Model.WeeklyJobDay == 0)">Monday</option>
+                                <option value="1" selected="@(Model.WeeklyJobDay == 1)">Tuesday</option>
+                                <option value="2" selected="@(Model.WeeklyJobDay == 2)">Wednesday</option>
+                                <option value="3" selected="@(Model.WeeklyJobDay == 3)">Thursday</option>
+                                <option value="4" selected="@(Model.WeeklyJobDay == 4)">Friday</option>
+                                <option value="5" selected="@(Model.WeeklyJobDay == 5)">Saturday</option>
+                                <option value="6" selected="@(Model.WeeklyJobDay == 6)">Sunday</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Hour</label>
+                            <input type="number" class="form-control" name="WeeklyJobHour" value="@Model.WeeklyJobHour" min="0" max="23" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Minute</label>
+                            <input type="number" class="form-control" name="WeeklyJobMinute" value="@Model.WeeklyJobMinute" min="0" max="59" />
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h5>Monthly Job</h5>
+                        <div class="mb-3">
+                            <label class="form-label">Day of Month</label>
+                            <input type="number" class="form-control" name="MonthlyJobDay" value="@Model.MonthlyJobDay" min="1" max="31" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Hour</label>
+                            <input type="number" class="form-control" name="MonthlyJobHour" value="@Model.MonthlyJobHour" min="0" max="23" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Minute</label>
+                            <input type="number" class="form-control" name="MonthlyJobMinute" value="@Model.MonthlyJobMinute" min="0" max="59" />
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input" id="isEnabled" name="IsEnabled" value="true" @(Model.IsEnabled ? "checked" : "") />
+                        <label class="form-check-label" for="isEnabled">
+                            <strong>Enable Scheduler</strong>
+                        </label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-lg">Save Configuration</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5>Last Run: @(Model.LastRun?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</h5>
+            <h5>Next Run: @(Model.NextRun?.ToString("yyyy-MM-dd HH:mm") ?? "Not scheduled")</h5>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Auto-dismiss success alert after 3 seconds
+        setTimeout(function() {
+            var alert = document.querySelector('.alert-success');
+            if (alert) {
+                var bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }
+        }, 3000);
+    </script>
+}

@@ -1,0 +1,12 @@
+{
+  "version": "1.0.4",
+  "model_type": "isolation_forest",
+  "timestamp": "2026-02-24T06:21:32.492398",
+  "metrics": {
+    "n_samples": 4030,
+    "n_features": 43,
+    "anomaly_count": 202,
+    "anomaly_rate": 0.05012406947890819,
+    "contamination": 0.05
+  }
+}

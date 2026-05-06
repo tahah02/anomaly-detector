@@ -1,0 +1,14 @@
+{
+  "version": "1.0.4",
+  "model_type": "autoencoder",
+  "timestamp": "2026-02-24T06:21:32.518005",
+  "metrics": {
+    "threshold": 2.2745738599254923,
+    "mean": 0.07294460500617797,
+    "std": 0.733876418306438,
+    "k": 3.0,
+    "computed_at": "2026-02-24T06:21:32.433848",
+    "n_samples": 4030,
+    "n_features": 43
+  }
+}

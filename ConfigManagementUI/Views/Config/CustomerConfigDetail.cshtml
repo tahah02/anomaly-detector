@@ -1,0 +1,89 @@
+@model CustomerConfigDetailViewModel
+
+@{
+    ViewData["Title"] = Model.IsNewConfig ? "Create Configuration" : "Edit Configuration";
+}
+
+<div class="container-fluid mt-4">
+    <h1>@ViewData["Title"]</h1>
+    
+    <div class="card">
+        <div class="card-body">
+            <form method="post" action="@Url.Action("SaveCustomerConfig")">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Customer ID</label>
+                        <input type="text" class="form-control" name="CustomerID" value="@Model.CustomerID" readonly />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Account Number</label>
+                        <input type="text" class="form-control" name="AccountNo" value="@Model.AccountNo" @(Model.IsNewConfig ? "" : "readonly") required />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Transfer Type</label>
+                        @if (Model.IsNewConfig)
+                        {
+                            <select class="form-control" name="TransferType" required>
+                                <option value="">Select Type</option>
+                                <option value="S">SWIFT (S)</option>
+                                <option value="I">International (I)</option>
+                                <option value="L">Local (L)</option>
+                                <option value="Q">Quick (Q)</option>
+                                <option value="O">Other (O)</option>
+                                <option value="M">Mobile (M)</option>
+                                <option value="F">Fast (F)</option>
+                            </select>
+                        }
+                        else
+                        {
+                            <input type="text" class="form-control" name="TransferType" value="@Model.TransferType" readonly />
+                        }
+                    </div>
+                </div>
+                
+                <hr />
+                
+                <h5>Enable/Disable Checks</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-primary">Rule Engine Checks</h6>
+                        <div class="form-check form-switch mb-3">
+                            <input type="checkbox" class="form-check-input" name="VelocityCheck10Min" value="true" @(Model.VelocityCheck10Min ? "checked" : "") />
+                            <label class="form-check-label">Velocity Check (10 minutes)</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input type="checkbox" class="form-check-input" name="VelocityCheck1Hour" value="true" @(Model.VelocityCheck1Hour ? "checked" : "") />
+                            <label class="form-check-label">Velocity Check (1 hour)</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input type="checkbox" class="form-check-input" name="MonthlySpendingCheck" value="true" @(Model.MonthlySpendingCheck ? "checked" : "") />
+                            <label class="form-check-label">Monthly Spending Check</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input type="checkbox" class="form-check-input" name="NewBeneficiaryCheck" value="true" @(Model.NewBeneficiaryCheck ? "checked" : "") />
+                            <label class="form-check-label">New Beneficiary Check</label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6 class="text-success">ML Model Checks</h6>
+                        <div class="form-check form-switch mb-3">
+                            <input type="checkbox" class="form-check-input" name="IsolationForestCheck" value="true" @(Model.IsolationForestCheck ? "checked" : "") />
+                            <label class="form-check-label">Isolation Forest Model</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input type="checkbox" class="form-check-input" name="AutoencoderCheck" value="true" @(Model.AutoencoderCheck ? "checked" : "") />
+                            <label class="form-check-label">Autoencoder Model</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr />
+                
+                <button type="submit" class="btn btn-primary btn-lg">Save Configuration</button>
+                <a href="@Url.Action("SearchCustomer", new { customerId = Model.CustomerID })" class="btn btn-secondary">Cancel</a>
+            </form>
+        </div>
+    </div>
+</div>

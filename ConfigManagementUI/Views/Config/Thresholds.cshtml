@@ -1,0 +1,182 @@
+@model List<ThresholdConfigViewModel>
+
+@{
+    ViewData["Title"] = "Thresholds Configuration";
+}
+
+<div class="container-fluid mt-4">
+    <h1>Thresholds Configuration</h1>
+    
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+        <div id="toastContainer"></div>
+    </div>
+    
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Threshold Name</th>
+                <th>Type</th>
+                <th>Value</th>
+                <th>Min</th>
+                <th>Max</th>
+                <th>Status</th>
+                <th>Approval</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var threshold in Model)
+            {
+                <tr>
+                    <td>@threshold.ThresholdName</td>
+                    <td>@threshold.ThresholdType</td>
+                    <td>@threshold.ThresholdValue</td>
+                    <td>@threshold.MinValue</td>
+                    <td>@threshold.MaxValue</td>
+                    <td>
+                        <span class="badge bg-@(threshold.ValidationStatus == "VALID" ? "success" : "danger")">
+                            @threshold.ValidationStatus
+                        </span>
+                    </td>
+                    <td>@threshold.ApprovalStatus</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning edit-threshold" 
+                                data-id="@threshold.ThresholdID"
+                                data-name="@threshold.ThresholdName"
+                                data-value="@threshold.ThresholdValue"
+                                data-min="@threshold.MinValue"
+                                data-max="@threshold.MaxValue"
+                                data-approval="@threshold.ApprovalStatus"
+                                data-bs-toggle="modal" 
+                                data-bs-target="#editModal">
+                            Edit
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editModalLabel">Edit Threshold</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="thresholdId" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Threshold Name</label>
+                        <input type="text" class="form-control" id="thresholdName" disabled />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Threshold Value</label>
+                        <input type="number" class="form-control" id="thresholdValue" step="0.01" required />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Min Value</label>
+                        <input type="number" class="form-control" id="minValue" step="0.01" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Max Value</label>
+                        <input type="number" class="form-control" id="maxValue" step="0.01" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Approval Status</label>
+                        <select class="form-control" id="approvalStatus">
+                            <option value="">Select Status</option>
+                            <option value="PENDING">PENDING</option>
+                            <option value="APPROVED">APPROVED</option>
+                            <option value="REJECTED">REJECTED</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveBtn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showToast(message, type) {
+    const toastId = 'toast-' + Date.now();
+    const bgColor = type === 'success' ? 'bg-success' : 'bg-danger';
+    const toastHtml = `
+        <div id="${toastId}" class="toast ${bgColor} text-white" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    const container = document.getElementById('toastContainer');
+    container.insertAdjacentHTML('beforeend', toastHtml);
+    
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+document.querySelectorAll('.edit-threshold').forEach(button => {
+    button.addEventListener('click', function() {
+        document.getElementById('thresholdId').value = this.dataset.id;
+        document.getElementById('thresholdName').value = this.dataset.name;
+        document.getElementById('thresholdValue').value = this.dataset.value;
+        document.getElementById('minValue').value = this.dataset.min || '';
+        document.getElementById('maxValue').value = this.dataset.max || '';
+        document.getElementById('approvalStatus').value = this.dataset.approval || '';
+    });
+});
+
+document.getElementById('saveBtn').addEventListener('click', async function() {
+    const id = document.getElementById('thresholdId').value;
+    const thresholdValue = parseFloat(document.getElementById('thresholdValue').value);
+    const minValue = document.getElementById('minValue').value ? parseFloat(document.getElementById('minValue').value) : null;
+    const maxValue = document.getElementById('maxValue').value ? parseFloat(document.getElementById('maxValue').value) : null;
+    const approvalStatus = document.getElementById('approvalStatus').value;
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('id', id);
+        params.append('thresholdValue', thresholdValue);
+        if (minValue !== null) params.append('minValue', minValue);
+        if (maxValue !== null) params.append('maxValue', maxValue);
+        if (approvalStatus) params.append('approvalStatus', approvalStatus);
+        
+        const response = await fetch(`/Config/UpdateThreshold`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: params.toString()
+        });
+        
+        if (response.ok) {
+            showToast('Threshold updated successfully', 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
+            modal.hide();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            const error = await response.text();
+            showToast('Error: ' + error, 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+});
+</script>

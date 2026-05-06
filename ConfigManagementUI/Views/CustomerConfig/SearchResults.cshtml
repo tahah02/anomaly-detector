@@ -1,0 +1,63 @@
+@model List<CustomerConfigListViewModel>
+
+@{
+    ViewData["Title"] = "Search Results";
+}
+
+<div class="container-fluid mt-4">
+    <h1>Configuration Results</h1>
+    <p>Showing configurations for @ViewBag.SearchType: <strong>@ViewBag.SearchValue</strong></p>
+    
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    
+    @if (Model.Any())
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Customer ID</th>
+                    <th>Account No</th>
+                    <th>Transfer Type</th>
+                    <th>Enabled Checks</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var config in Model)
+                {
+                    <tr>
+                        <td>@config.CustomerID</td>
+                        <td>@config.AccountNo</td>
+                        <td>@config.TransferType</td>
+                        <td><span class="badge bg-info">@config.EnabledChecksCount / 6</span></td>
+                        <td>
+                            <a href="@Url.Action("ConfigDetails", new { customerId = config.CustomerID, accountNo = config.AccountNo, transferType = config.TransferType })" 
+                               class="btn btn-sm btn-primary">View/Edit</a>
+                            <form method="post" action="@Url.Action("DeleteConfig")" style="display:inline;">
+                                <input type="hidden" name="customerId" value="@config.CustomerID" />
+                                <input type="hidden" name="accountNo" value="@config.AccountNo" />
+                                <input type="hidden" name="transferType" value="@config.TransferType" />
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this configuration?')">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <div class="alert alert-info">No configurations found for this search.</div>
+    }
+    
+    <div class="mt-3">
+        <a href="@Url.Action("CreateConfig", new { customerId = ViewBag.SearchValue })" class="btn btn-success">+ Add New Configuration</a>
+        <a href="@Url.Action("Index")" class="btn btn-secondary">Back to Search</a>
+    </div>
+</div>

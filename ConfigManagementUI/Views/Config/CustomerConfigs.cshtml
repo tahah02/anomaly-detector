@@ -1,0 +1,43 @@
+@{
+    ViewData["Title"] = "Customer Configuration Search";
+}
+
+<div class="container-fluid mt-4">
+    <h1>Customer Configuration Management</h1>
+    
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    
+    <div class="card">
+        <div class="card-body">
+            <h5>Search for Customer Configuration</h5>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Search by Customer ID</h6>
+                    <form method="post" action="@Url.Action("SearchCustomer")">
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" name="customerId" placeholder="Enter Customer ID" required />
+                            <button class="btn btn-primary" type="submit">Search</button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="col-md-6">
+                    <h6>Search by Account Number</h6>
+                    <form method="post" action="@Url.Action("SearchAccount")">
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" name="accountNo" placeholder="Enter Account Number" required />
+                            <button class="btn btn-primary" type="submit">Search</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
