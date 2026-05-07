@@ -1,5 +1,6 @@
 import json
 import numpy as np
+from datetime import datetime
 from backend.rule_engine import check_rule_violation, get_thresholds
 from backend.db_service import get_db_service
 
@@ -186,10 +187,10 @@ def make_decision(txn, user_stats, model, features, autoencoder=None):
             'hourly_count': 1,
             'daily_total': amount,
             'daily_count': 1,
-            'hour': 12,  
-            'day_of_week': 0,
-            'is_weekend': 0,
-            'is_night': 0,
+            'hour': datetime.now().hour,
+            'day_of_week': datetime.now().weekday(),
+            'is_weekend': 1 if datetime.now().weekday() >= 5 else 0,
+            'is_night': 1 if (datetime.now().hour < 6 or datetime.now().hour >= 22) else 0,
             'time_since_last': time_since_last,
             'recent_burst': 1 if time_since_last < recent_burst_threshold else 0,
             'txn_count_30s': txn.get('txn_count_30s', 1),

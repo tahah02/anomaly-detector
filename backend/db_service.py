@@ -345,7 +345,7 @@ class DatabaseService:
             logger.error(f"Error getting monthly spending: {e}")
             return 0.0
     
-    def check_new_beneficiary(self, customer_id: str, recipient_account: str, transfer_type: str = None) -> int:
+    def check_new_beneficiary(self, customer_id: str, receipent_account: str, transfer_type: str = None) -> int:
         try:
             placeholder = '%s' if DRIVER_TYPE == 'pymssql' else '?'
             
@@ -354,21 +354,21 @@ class DatabaseService:
                             WHERE CustomerId = {placeholder} 
                             AND (ReceipentAccount = {placeholder} OR ReceipentAccount LIKE {placeholder})
                             AND TransferType = {placeholder}"""
-                params = [customer_id, recipient_account, f'%{recipient_account}%', transfer_type]
+                params = [customer_id, receipent_account, f'%{receipent_account}%', transfer_type]
             else:
                 query = f"""SELECT COUNT(*) as count FROM TransactionHistoryLogs 
                             WHERE CustomerId = {placeholder} 
                             AND (ReceipentAccount = {placeholder} OR ReceipentAccount LIKE {placeholder})"""
-                params = [customer_id, recipient_account, f'%{recipient_account}%']
+                params = [customer_id, receipent_account, f'%{receipent_account}%']
             
             df = self.execute_query(query, params)
             count = df['count'].iloc[0]
             
             if count > 0:
-                logger.info(f"Customer {customer_id} has {count} previous transactions to {recipient_account}")
+                logger.info(f"Customer {customer_id} has {count} previous transactions to {receipent_account}")
                 return 0
             else:
-                logger.info(f"Customer {customer_id} has no previous transactions to {recipient_account}")
+                logger.info(f"Customer {customer_id} has no previous transactions to {receipent_account}")
                 return 1
                 
         except Exception as e:

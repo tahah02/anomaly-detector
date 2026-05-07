@@ -68,14 +68,18 @@ def check_rule_violation(amount, user_avg, user_std, transfer_type, txn_count_10
     threshold = calculate_threshold(user_avg, user_std, transfer_type, thresholds)
 
     if checks_config['velocity_check_10min'] == 1:
-        if txn_count_10min > max_velocity_10min:
+        # Include current transaction in the count
+        current_txn_count_10min = txn_count_10min + 1
+        if current_txn_count_10min > max_velocity_10min:
             violated = True
-            reasons.append(f"Velocity limit exceeded: {txn_count_10min} transactions in last 10 minutes (max allowed {max_velocity_10min})")
+            reasons.append(f"Velocity limit exceeded: {current_txn_count_10min} transactions in last 10 minutes (max allowed {max_velocity_10min})")
 
     if checks_config['velocity_check_1hour'] == 1:
-        if txn_count_1hour > max_velocity_1hour:
+        # Include current transaction in the count
+        current_txn_count_1hour = txn_count_1hour + 1
+        if current_txn_count_1hour > max_velocity_1hour:
             violated = True
-            reasons.append(f"Hourly velocity limit exceeded: {txn_count_1hour} transactions in last 1 hour (max allowed {max_velocity_1hour})")
+            reasons.append(f"Hourly velocity limit exceeded: {current_txn_count_1hour} transactions in last 1 hour (max allowed {max_velocity_1hour})")
 
     if checks_config['monthly_spending_check'] == 1:
         if monthly_spending > threshold:

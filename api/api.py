@@ -107,7 +107,13 @@ async def analyze_transaction(request: TransactionRequest, req: Request):
         }
     
     try:
-        is_new_ben = db.check_new_beneficiary(request.customer_id, request.to_account_no, request.transfer_type)
+        # Use toIban if toAccountNo is not provided (for SWIFT/International transfers)
+        receipent_account = request.to_account_no or request.to_iban
+        if not receipent_account:
+            logger.warning(f"No beneficiary account provided for customer {request.customer_id}")
+            is_new_ben = 1  # Treat as new beneficiary if no account info
+        else:
+            is_new_ben = db.check_new_beneficiary(request.customer_id, receipent_account, request.transfer_type)
     except Exception as e:
         logger.error(f"Beneficiary check failed: {e}")
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")

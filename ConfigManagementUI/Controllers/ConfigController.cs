@@ -16,7 +16,7 @@ namespace ConfigManagementUI.Controllers
             _logger = logger;
         }
 
-        public async Task<IActionResult> Index()
+        public IActionResult Index()
         {
             return View();
         }
@@ -234,7 +234,7 @@ namespace ConfigManagementUI.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> UpdateThreshold(int id, double thresholdValue, double? minValue, double? maxValue, string? approvalStatus)
+        public async Task<IActionResult> UpdateThreshold(int id, double thresholdValue, double? minValue, double? maxValue, bool isActive = true, string? approvalStatus = null)
         {
             var threshold = await _context.ThresholdConfig.FindAsync(id);
             if (threshold == null)
@@ -251,6 +251,9 @@ namespace ConfigManagementUI.Controllers
             
             if (maxValue.HasValue)
                 threshold.MaxValue = maxValue;
+            
+            // Update IsActive
+            threshold.IsActive = isActive;
             
             if (!string.IsNullOrEmpty(approvalStatus))
                 threshold.ApprovalStatus = approvalStatus;

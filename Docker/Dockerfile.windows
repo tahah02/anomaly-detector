@@ -1,36 +1,27 @@
-# STAGE 1: Build .NET Frontend
 FROM mcr.microsoft.com/dotnet/sdk:8.0-windowsservercore-ltsc2019 AS dotnet-builder
 WORKDIR C:/src
 COPY ConfigManagementUI/ ./ConfigManagementUI/ 
 WORKDIR C:/src/ConfigManagementUI
 RUN dotnet publish "ConfigManagementUI.csproj" -c Release -o C:/app/publish
 
-# STAGE 2: Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-windowsservercore-ltsc2019
 WORKDIR C:/app
 
-# Environment Variables
 ENV API_USERNAME=FDS
 ENV API_PASSWORD=12345
 ENV ADMIN_KEY=FDS12345
-# PYTHONPATH is critical for Python to find the 'backend' and 'api' packages
 ENV PYTHONPATH="C:/app;C:/app/api;C:/app/backend"
 ENV PYTHONUNBUFFERED=1
 
-# Install Python 3.10
 RUN powershell -Command "Invoke-WebRequest https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe -OutFile python-install.exe; Start-Process python-install.exe -ArgumentList '/quiet InstallAllUsers=1 PrependPath=1' -Wait; Remove-Item python-install.exe"
-# Install VC Redist (Required for many Python ML libs)
 RUN powershell -Command "Invoke-WebRequest https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile vc_redist.x64.exe; Start-Process vc_redist.x64.exe -ArgumentList '/install /quiet /norestart' -Wait; Remove-Item vc_redist.x64.exe"
 
-# ODBC Driver for SQL Server
 COPY Docker/msodbcsql.msi .
 RUN powershell -Command "Start-Process msiexec.exe -ArgumentList '/i', 'msodbcsql.msi', '/quiet', '/norestart' -Wait; Remove-Item msodbcsql.msi"
 
-# 1. Create Directories
 RUN powershell -Command "New-Item -ItemType Directory -Path C:\app\backend\model -Force"
 RUN powershell -Command "New-Item -ItemType Directory -Path C:\app\api -Force"
 
-# 2. Copy ML Models
 COPY Docker/isolation_forest.pkl ./backend/model/
 COPY Docker/autoencoder.h5 ./backend/model/
 COPY Docker/isolation_forest_scaler.pkl ./backend/model/
@@ -38,29 +29,21 @@ COPY Docker/autoencoder_scaler.pkl ./backend/model/
 COPY Docker/autoencoder_threshold.json ./backend/model/
 COPY Docker/current_version.txt ./backend/model/
 
-# 3. Copy Application Code
 COPY backend/ C:/app/backend/
 COPY api/ C:/app/api/
-# Copy published .NET files to the root (C:\app)
 COPY --from=dotnet-builder C:/app/publish/ .
 
-# Verify api/__init__.py has correct content (no eager imports)
-# RUN powershell -Command "Get-Content C:\app\api\__init__.py | Select-String 'from api.api import app' | ForEach-Object { throw 'ERROR: api/__init__.py still has circular import!' }"
-
-# 4. Fix Python Packages (Ensuring __init__.py exists)
+RUN powershell -Command "Get-Content C:\app\api\__init__.py | Select-String 'from api.api import app' | ForEach-Object { throw 'ERROR: api/__init__.py still has circular import!' }"
 RUN powershell -Command "if (!(Test-Path C:\app\backend\__init__.py)) { New-Item -ItemType File -Path C:\app\backend\__init__.py -Force }"
-
-# 5. Build-Time Verification (Fail build if critical files are missing)
+RUN powershell -Command "if (!(Test-Path C:\app\api\__init__.py)) { New-Item -ItemType File -Path C:\app\api\__init__.py -Force }"
 RUN powershell -Command "if (!(Test-Path C:\app\backend\hybrid_decision.py)) { throw 'CRITICAL ERROR: hybrid_decision.py not found in C:\app\backend' }"
 RUN powershell -Command "if (!(Test-Path C:\app\ConfigManagementUI.exe)) { throw 'CRITICAL ERROR: .NET Executable not found in root' }"
 
-# 6. Install Python Dependencies
 COPY requirements_api.txt .
 COPY .env .
 RUN python -m pip install --upgrade pip
 RUN python -m pip install --no-cache-dir -r requirements_api.txt
 
-# 7. Startup Script
 COPY start_all.ps1 .
 
 EXPOSE 8000

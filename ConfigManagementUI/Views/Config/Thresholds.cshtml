@@ -20,6 +20,7 @@
                 <th>Min</th>
                 <th>Max</th>
                 <th>Status</th>
+                <th>Active</th>
                 <th>Approval</th>
                 <th>Action</th>
             </tr>
@@ -38,6 +39,11 @@
                             @threshold.ValidationStatus
                         </span>
                     </td>
+                    <td>
+                        <span class="badge bg-@(threshold.IsActive ? "success" : "secondary")">
+                            @(threshold.IsActive ? "ACTIVE" : "INACTIVE")
+                        </span>
+                    </td>
                     <td>@threshold.ApprovalStatus</td>
                     <td>
                         <button class="btn btn-sm btn-warning edit-threshold" 
@@ -46,6 +52,7 @@
                                 data-value="@threshold.ThresholdValue"
                                 data-min="@threshold.MinValue"
                                 data-max="@threshold.MaxValue"
+                                data-isactive="@threshold.IsActive"
                                 data-approval="@threshold.ApprovalStatus"
                                 data-bs-toggle="modal" 
                                 data-bs-target="#editModal">
@@ -87,6 +94,16 @@
                     <div class="mb-3">
                         <label class="form-label">Max Value</label>
                         <input type="number" class="form-control" id="maxValue" step="0.01" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Is Active</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="isActive" />
+                            <label class="form-check-label" for="isActive">
+                                Enable this threshold
+                            </label>
+                        </div>
                     </div>
                     
                     <div class="mb-3">
@@ -139,6 +156,7 @@ document.querySelectorAll('.edit-threshold').forEach(button => {
         document.getElementById('thresholdValue').value = this.dataset.value;
         document.getElementById('minValue').value = this.dataset.min || '';
         document.getElementById('maxValue').value = this.dataset.max || '';
+        document.getElementById('isActive').checked = this.dataset.isactive === 'True';
         document.getElementById('approvalStatus').value = this.dataset.approval || '';
     });
 });
@@ -148,6 +166,7 @@ document.getElementById('saveBtn').addEventListener('click', async function() {
     const thresholdValue = parseFloat(document.getElementById('thresholdValue').value);
     const minValue = document.getElementById('minValue').value ? parseFloat(document.getElementById('minValue').value) : null;
     const maxValue = document.getElementById('maxValue').value ? parseFloat(document.getElementById('maxValue').value) : null;
+    const isActive = document.getElementById('isActive').checked;
     const approvalStatus = document.getElementById('approvalStatus').value;
     
     try {
@@ -156,6 +175,7 @@ document.getElementById('saveBtn').addEventListener('click', async function() {
         params.append('thresholdValue', thresholdValue);
         if (minValue !== null) params.append('minValue', minValue);
         if (maxValue !== null) params.append('maxValue', maxValue);
+        params.append('isActive', isActive);
         if (approvalStatus) params.append('approvalStatus', approvalStatus);
         
         const response = await fetch(`/Config/UpdateThreshold`, {
