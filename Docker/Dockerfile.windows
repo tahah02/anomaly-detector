@@ -31,6 +31,8 @@ COPY Docker/current_version.txt ./backend/model/
 
 COPY backend/ C:/app/backend/
 COPY api/ C:/app/api/
+COPY list_model_versions.py C:/app/
+COPY activate_model_version.py C:/app/
 COPY --from=dotnet-builder C:/app/publish/ .
 
 RUN powershell -Command "Get-Content C:\app\api\__init__.py | Select-String 'from api.api import app' | ForEach-Object { throw 'ERROR: api/__init__.py still has circular import!' }"

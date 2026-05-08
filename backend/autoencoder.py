@@ -1,4 +1,4 @@
-import os, json, logging, joblib
+import os, json, logging, joblib, time
 import numpy as np
 from typing import List, Optional, Dict, Any
 from .utils import MODEL_FEATURES
@@ -78,23 +78,91 @@ class AutoencoderInference:
         self.scaler = None
         self.threshold = None
         self.features = None
+        self._last_threshold_check = 0  # Timestamp for caching
+        self._threshold_cache_duration = 60  # Cache for 60 seconds
 
     def load(self) -> bool:
         try:
+            # Load model and scaler
             self.model = TransactionAutoencoder.load(self.MODEL_PATH)
             self.scaler = joblib.load(self.SCALER_PATH)
+            
+            # Load threshold from JSON (fallback)
             threshold_data = json.load(open(self.THRESHOLD_PATH))
-            self.threshold = threshold_data['threshold']
+            json_threshold = threshold_data['threshold']
+            
+            # Try to load threshold from database first
+            try:
+                from backend.db_service import get_db_service
+                db = get_db_service()
+                if db.connect():
+                    query = """
+                        SELECT ThresholdValue 
+                        FROM ThresholdConfig 
+                        WHERE ThresholdName = 'autoencoder_threshold' 
+                        AND IsActive = 1
+                    """
+                    result = db.execute_query(query)
+                    if not result.empty:
+                        self.threshold = float(result['ThresholdValue'].iloc[0])
+                        logger.info(f"✅ Loaded autoencoder threshold from DATABASE: {self.threshold}")
+                    else:
+                        self.threshold = json_threshold
+                        logger.info(f"⚠️ No active threshold in database, using JSON: {self.threshold}")
+                    db.disconnect()
+                else:
+                    self.threshold = json_threshold
+                    logger.warning(f"⚠️ Database unavailable, using JSON threshold: {self.threshold}")
+            except Exception as db_error:
+                logger.warning(f"⚠️ Database error: {db_error}, using JSON threshold: {json_threshold}")
+                self.threshold = json_threshold
+            
+            # Load features
             self.features = threshold_data.get('features', MODEL_FEATURES)
-            logger.info(f"Loaded autoencoder with {len(self.features)} features")
+            logger.info(f"Loaded autoencoder with {len(self.features)} features, threshold: {self.threshold}")
             return True
         except Exception as e:
             logger.error(f"Autoencoder load failed: {e}")
             return False
 
+    def _get_current_threshold(self) -> float:
+        """Get threshold from database with caching, fallback to instance threshold"""
+        current_time = time.time()
+        
+        # Check cache validity
+        if current_time - self._last_threshold_check < self._threshold_cache_duration:
+            return self.threshold
+        
+        # Try to refresh from database
+        try:
+            from backend.db_service import get_db_service
+            db = get_db_service()
+            if db.connect():
+                query = """
+                    SELECT ThresholdValue 
+                    FROM ThresholdConfig 
+                    WHERE ThresholdName = 'autoencoder_threshold' 
+                    AND IsActive = 1
+                """
+                result = db.execute_query(query)
+                if not result.empty:
+                    new_threshold = float(result['ThresholdValue'].iloc[0])
+                    if new_threshold != self.threshold:
+                        logger.info(f"🔄 Threshold updated from database: {self.threshold} → {new_threshold}")
+                        self.threshold = new_threshold
+                db.disconnect()
+                self._last_threshold_check = current_time
+        except Exception as e:
+            logger.debug(f"Could not refresh threshold from database: {e}")
+        
+        return self.threshold
+
     def score_transaction(self, features: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if self.model is None and not self.load():
             return None
+
+        # Get current threshold (with caching)
+        current_threshold = self._get_current_threshold()
 
         missing = [f for f in self.features if f not in features]
         if missing:
@@ -115,7 +183,7 @@ class AutoencoderInference:
                 logger.error(f"Invalid input features: {x}")
                 return {
                     'reconstruction_error': 999.0,
-                    'threshold': self.threshold,
+                    'threshold': current_threshold,
                     'is_anomaly': True,
                     'reason': 'Invalid input features (NaN/Inf)'
                 }
@@ -126,7 +194,7 @@ class AutoencoderInference:
                 logger.error(f"Invalid scaled features: {x}")
                 return {
                     'reconstruction_error': 999.0,
-                    'threshold': self.threshold,
+                    'threshold': current_threshold,
                     'is_anomaly': True,
                     'reason': 'Invalid scaled features (NaN/Inf)'
                 }
@@ -136,18 +204,18 @@ class AutoencoderInference:
                 logger.error(f"Invalid reconstruction error: {error}")
                 return {
                     'reconstruction_error': 999.0,
-                    'threshold': self.threshold,
+                    'threshold': current_threshold,
                     'is_anomaly': True,
                     'reason': 'Invalid reconstruction error (NaN/Inf)'
                 }
 
-            is_anomaly = error > self.threshold
+            is_anomaly = error > current_threshold
             return {
                 'reconstruction_error': error,
-                'threshold': self.threshold,
+                'threshold': current_threshold,
                 'is_anomaly': is_anomaly,
                 'reason': (
-                    f"Autoencoder anomaly: {error:.4f} > {self.threshold:.4f}"
+                    f"Autoencoder anomaly: {error:.4f} > {current_threshold:.4f}"
                     if is_anomaly else None
                 )
             }

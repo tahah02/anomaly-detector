@@ -150,7 +150,11 @@ async def analyze_transaction(request: TransactionRequest, req: Request):
     result['individual_scores'] = {
         "rule_engine": {"violated": result['is_fraud'], "threshold": result.get('threshold', 0)},
         "isolation_forest": {"anomaly_score": result.get('risk_score', 0), "is_anomaly": result.get('ml_flag', False)},
-        "autoencoder": {"reconstruction_error": result.get('ae_reconstruction_error'), "is_anomaly": result.get('ae_flag', False)}
+        "autoencoder": {
+            "reconstruction_error": result.get('ae_reconstruction_error'), 
+            "threshold": result.get('ae_threshold'),
+            "is_anomaly": result.get('ae_flag', False)
+        }
     }
     
     save_transaction_to_file(request=request, decision=decision, risk_score=result.get('risk_score', 0.0),
