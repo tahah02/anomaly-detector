@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from backend.utils import get_dynamic_model_features
+from backend.feature_selector import MrMRFeatureSelector
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -16,11 +17,14 @@ class IsolationForestTrainer:
     MODEL_PATH = 'backend/model/isolation_forest.pkl'
     SCALER_PATH = 'backend/model/isolation_forest_scaler.pkl'
 
-    def __init__(self, contamination: float = 0.05, n_estimators: int = 100):
+    def __init__(self, contamination: float = 0.05, n_estimators: int = 100, use_mrmr: bool = True, n_features: int = 15):
         self.contamination = contamination
         self.n_estimators = n_estimators
+        self.use_mrmr = use_mrmr
+        self.n_features = n_features
         self.scaler: Optional[StandardScaler] = None
         self.model: Optional[IsolationForest] = None
+        self.feature_selector: Optional[MrMRFeatureSelector] = None
 
     def _ensure_dir(self, path: str):
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
@@ -47,7 +51,32 @@ class IsolationForestTrainer:
         available_features = [f for f in dynamic_features if f in df.columns]
         logger.info(f"Using {len(available_features)} features for training")
         
-        X = df[available_features].fillna(0).values
+        selected_features = available_features
+        
+        if self.use_mrmr and len(available_features) > self.n_features:
+            logger.info(f"Running MrMR feature selection to select top {self.n_features} features")
+            
+            try:
+                y = (df[available_features].fillna(0).std(axis=1) > df[available_features].fillna(0).std(axis=1).median()).astype(int)
+                
+                self.feature_selector = MrMRFeatureSelector(n_features=self.n_features)
+                selected_features = self.feature_selector.select_features(
+                    X=df[available_features].fillna(0),
+                    y=y
+                )
+                
+                model_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+                self.feature_selector.save_to_db(model_version)
+                
+                logger.info(f"MrMR selected {len(selected_features)} features")
+                logger.info(f"Selected features: {selected_features[:10]}...")
+                
+            except Exception as e:
+                logger.error(f"MrMR feature selection failed: {e}")
+                logger.info("Falling back to all available features")
+                selected_features = available_features
+        
+        X = df[selected_features].fillna(0).values
         n_samples, n_features = X.shape
 
         self.fit_scaler(X)
@@ -64,10 +93,11 @@ class IsolationForestTrainer:
         self._ensure_dir(self.MODEL_PATH)
         model_data = {
             'model': self.model,
-            'features': available_features,
+            'features': selected_features,
             'contamination': self.contamination,
             'n_estimators': self.n_estimators,
-            'trained_at': datetime.now().isoformat()
+            'trained_at': datetime.now().isoformat(),
+            'mrmr_used': self.use_mrmr and self.feature_selector is not None
         }
         joblib.dump(model_data, self.MODEL_PATH)
 
@@ -76,14 +106,21 @@ class IsolationForestTrainer:
         anomaly_rate = anomaly_count / len(predictions)
 
         logger.info(f"Training done | Anomalies: {anomaly_count}/{len(predictions)} ({anomaly_rate:.2%})")
-        return {
+        
+        result = {
             'n_samples': n_samples,
             'n_features': n_features,
-            'feature_list': available_features,
+            'feature_list': selected_features,
             'anomaly_count': int(anomaly_count),
             'anomaly_rate': float(anomaly_rate),
-            'contamination': self.contamination
+            'contamination': self.contamination,
+            'mrmr_used': self.use_mrmr and self.feature_selector is not None
         }
+        
+        if self.feature_selector:
+            result['feature_importance'] = self.feature_selector.get_feature_importance()
+        
+        return result
 
     def validate(self, X_scaled: np.ndarray, expected_anomaly_rate: float, tolerance=0.10):
         if self.model is None:
@@ -98,15 +135,14 @@ class IsolationForestTrainer:
         logger.info("Model validation PASSED")
 
 
-def train_isolation_forest():
-    trainer = IsolationForestTrainer()
+def train_isolation_forest(use_mrmr: bool = True, n_features: int = 15):
+    trainer = IsolationForestTrainer(use_mrmr=use_mrmr, n_features=n_features)
     metrics = trainer.train()
 
     df = trainer.load_data()
-    dynamic_features = get_dynamic_model_features()
-    available_features = [f for f in dynamic_features if f in df.columns]
+    feature_list = metrics['feature_list']
     
-    X = trainer.scaler.transform(df[available_features].fillna(0).values)
+    X = trainer.scaler.transform(df[feature_list].fillna(0).values)
     sample = X[:min(1000, len(X))]
     trainer.validate(sample, metrics['anomaly_rate'])
     return metrics

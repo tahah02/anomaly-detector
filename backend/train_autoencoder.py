@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from sklearn.preprocessing import StandardScaler
 from backend.autoencoder import TransactionAutoencoder
 from backend.utils import get_dynamic_model_features
+from backend.feature_selector import MrMRFeatureSelector
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -19,10 +20,13 @@ class AutoencoderTrainer:
 
 
 
-    def __init__(self, k: float = 3.0):
+    def __init__(self, k: float = 3.0, use_mrmr: bool = True, n_features: int = 15):
         self.k = k
+        self.use_mrmr = use_mrmr
+        self.n_features = n_features
         self.scaler: Optional[StandardScaler] = None
         self.autoencoder: Optional[TransactionAutoencoder] = None
+        self.feature_selector: Optional[MrMRFeatureSelector] = None
 
     def _ensure_dir(self, path: str):
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
@@ -63,7 +67,32 @@ class AutoencoderTrainer:
         available_features = [f for f in dynamic_features if f in df.columns]
         logger.info(f"Using {len(available_features)} features for training")
         
-        X = df[available_features].fillna(0).values
+        selected_features = available_features
+        
+        if self.use_mrmr and len(available_features) > self.n_features:
+            logger.info(f"Running MrMR feature selection to select top {self.n_features} features")
+            
+            try:
+                y = (df[available_features].fillna(0).std(axis=1) > df[available_features].fillna(0).std(axis=1).median()).astype(int)
+                
+                self.feature_selector = MrMRFeatureSelector(n_features=self.n_features)
+                selected_features = self.feature_selector.select_features(
+                    X=df[available_features].fillna(0),
+                    y=y
+                )
+                
+                model_version = datetime.now().strftime("%Y%m%d_%H%M%S")
+                self.feature_selector.save_to_db(model_version)
+                
+                logger.info(f"MrMR selected {len(selected_features)} features")
+                logger.info(f"Selected features: {selected_features[:10]}...")
+                
+            except Exception as e:
+                logger.error(f"MrMR feature selection failed: {e}")
+                logger.info("Falling back to all available features")
+                selected_features = available_features
+        
+        X = df[selected_features].fillna(0).values
         n_samples, n_features = X.shape
 
         self.fit_scaler(X)
@@ -80,10 +109,22 @@ class AutoencoderTrainer:
 
         errors = self.autoencoder.compute_reconstruction_error(Xs)
         cfg = self.compute_threshold(errors)
-        self.save_threshold(cfg, n_samples, n_features, available_features)
+        self.save_threshold(cfg, n_samples, n_features, selected_features)
 
         logger.info(f"Training done | Threshold={cfg['threshold']:.6f}")
-        return {**cfg, 'n_samples': n_samples, 'n_features': n_features, 'feature_list': available_features}
+        
+        result = {
+            **cfg, 
+            'n_samples': n_samples, 
+            'n_features': n_features, 
+            'feature_list': selected_features,
+            'mrmr_used': self.use_mrmr and self.feature_selector is not None
+        }
+        
+        if self.feature_selector:
+            result['feature_importance'] = self.feature_selector.get_feature_importance()
+        
+        return result
 
     def validate(self, X_scaled: np.ndarray, expected_errors: np.ndarray, tol=0.01):
         ae = TransactionAutoencoder.load(self.MODEL_PATH)
@@ -94,15 +135,14 @@ class AutoencoderTrainer:
         logger.info("Model validation PASSED")
 
 
-def train_autoencoder():
-    trainer = AutoencoderTrainer()
+def train_autoencoder(use_mrmr: bool = True, n_features: int = 15):
+    trainer = AutoencoderTrainer(use_mrmr=use_mrmr, n_features=n_features)
     metrics = trainer.train()
 
     df = trainer.load_data()
-    dynamic_features = get_dynamic_model_features()
-    available_features = [f for f in dynamic_features if f in df.columns]
+    feature_list = metrics['feature_list']
     
-    X = trainer.scaler.transform(df[available_features].fillna(0).values)
+    X = trainer.scaler.transform(df[feature_list].fillna(0).values)
     sample = X[:min(1000, len(X))]
     trainer.validate(sample, trainer.autoencoder.compute_reconstruction_error(sample))
     return metrics

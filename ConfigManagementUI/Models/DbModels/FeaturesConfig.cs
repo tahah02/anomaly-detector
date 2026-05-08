@@ -14,5 +14,7 @@ namespace ConfigManagementUI.Models.DbModels
         public DateTime UpdatedAt { get; set; }
         public string? CreatedBy { get; set; }
         public string? UpdatedBy { get; set; }
+        public float? MrMRScore { get; set; }
+        public int? FeatureRank { get; set; }
     }
 }
