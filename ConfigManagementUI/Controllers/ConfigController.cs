@@ -21,6 +21,11 @@ namespace ConfigManagementUI.Controllers
             return View();
         }
 
+        public IActionResult MLflowDashboard()
+        {
+            return RedirectToAction("Index", "MLflowDashboard");
+        }
+
         public async Task<IActionResult> Features()
         {
             var features = await _context.FeaturesConfig

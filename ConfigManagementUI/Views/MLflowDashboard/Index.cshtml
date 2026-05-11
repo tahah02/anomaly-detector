@@ -1,0 +1,385 @@
+@{
+    ViewData["Title"] = "MLflow Dashboard";
+}
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>MLflow Experiment Tracking Dashboard</h1>
+            <p class="text-muted">Monitor model training experiments, compare metrics, and track model versions</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-primary" id="startMLflowBtn" onclick="startMLflowUI()">
+                <i class="bi bi-play-circle"></i> Start MLflow UI
+            </button>
+            <button class="btn btn-danger" id="stopMLflowBtn" onclick="stopMLflowUI()" style="display:none;">
+                <i class="bi bi-stop-circle"></i> Stop MLflow UI
+            </button>
+            <a href="http://localhost:5000" target="_blank" class="btn btn-info" id="openMLflowBtn" style="display:none;">
+                <i class="bi bi-box-arrow-up-right"></i> Open MLflow UI
+            </a>
+        </div>
+    </div>
+
+    <!-- Status Card -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <h6 class="text-muted">MLflow Status</h6>
+                            <h4 id="mlflowStatus">
+                                <span class="badge bg-secondary">Checking...</span>
+                            </h4>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Active Experiments</h6>
+                            <h4 id="experimentCount">
+                                <span class="badge bg-info">0</span>
+                            </h4>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Recent Runs</h6>
+                            <h4 id="runCount">
+                                <span class="badge bg-success">0</span>
+                            </h4>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Last Training</h6>
+                            <p id="lastTraining" class="text-muted">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Experiments Section -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-graph-up"></i> Experiments
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="experimentsContainer">
+                        <div class="col-12">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Runs Section -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history"></i> Recent Training Runs
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="runsContainer">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metrics Comparison -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart"></i> Model Performance Metrics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="metricsContainer">
+                        <p class="text-muted">Select a run to view detailed metrics</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .experiment-card {
+        border-left: 4px solid #0d6efd;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .experiment-card:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .run-item {
+        border-bottom: 1px solid #e9ecef;
+        padding: 12px 0;
+    }
+
+    .run-item:last-child {
+        border-bottom: none;
+    }
+
+    .status-badge {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+    }
+
+    .metric-box {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-left: 3px solid #0d6efd;
+    }
+
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #0d6efd;
+    }
+
+    .metric-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        text-transform: uppercase;
+    }
+</style>
+
+<script>
+    // Check MLflow status on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        checkMLflowStatus();
+        loadExperiments();
+        setInterval(checkMLflowStatus, 5000); // Check every 5 seconds
+    });
+
+    function checkMLflowStatus() {
+        fetch('/MLflowDashboard/GetMLflowStatus')
+            .then(response => response.json())
+            .then(data => {
+                const statusBadge = document.getElementById('mlflowStatus');
+                const startBtn = document.getElementById('startMLflowBtn');
+                const stopBtn = document.getElementById('stopMLflowBtn');
+                const openBtn = document.getElementById('openMLflowBtn');
+
+                if (data.isRunning) {
+                    statusBadge.innerHTML = '<span class="badge bg-success">Running</span>';
+                    startBtn.style.display = 'none';
+                    stopBtn.style.display = 'inline-block';
+                    openBtn.style.display = 'inline-block';
+                } else {
+                    statusBadge.innerHTML = '<span class="badge bg-secondary">Stopped</span>';
+                    startBtn.style.display = 'inline-block';
+                    stopBtn.style.display = 'none';
+                    openBtn.style.display = 'none';
+                }
+            })
+            .catch(error => console.error('Error checking status:', error));
+    }
+
+    function startMLflowUI() {
+        const btn = document.getElementById('startMLflowBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Starting...';
+
+        fetch('/MLflowDashboard/StartMLflowUI', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('MLflow UI started successfully! Opening in new tab...');
+                    setTimeout(() => window.open(data.url, '_blank'), 1000);
+                    checkMLflowStatus();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-play-circle"></i> Start MLflow UI';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error starting MLflow UI');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-play-circle"></i> Start MLflow UI';
+            });
+    }
+
+    function stopMLflowUI() {
+        if (confirm('Are you sure you want to stop MLflow UI?')) {
+            fetch('/MLflowDashboard/StopMLflowUI', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('MLflow UI stopped');
+                        checkMLflowStatus();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    }
+
+    function loadExperiments() {
+        fetch('/MLflowDashboard/GetExperiments')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const container = document.getElementById('experimentsContainer');
+                    container.innerHTML = '';
+                    document.getElementById('experimentCount').innerHTML = `<span class="badge bg-info">${data.data.length}</span>`;
+
+                    data.data.forEach(exp => {
+                        const card = document.createElement('div');
+                        card.className = 'col-md-6 mb-3';
+                        card.innerHTML = `
+                            <div class="card experiment-card" onclick="loadRuns('${exp.name}')">
+                                <div class="card-body">
+                                    <h6 class="card-title">${exp.name}</h6>
+                                    <p class="card-text text-muted small">${exp.description}</p>
+                                    <small class="text-muted">ID: ${exp.id}</small>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+                }
+            })
+            .catch(error => console.error('Error loading experiments:', error));
+    }
+
+    function loadRuns(experimentName) {
+        fetch(`/MLflowDashboard/GetRuns?experimentName=${experimentName}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const container = document.getElementById('runsContainer');
+                    container.innerHTML = '';
+                    document.getElementById('runCount').innerHTML = `<span class="badge bg-success">${data.data.length}</span>`;
+
+                    if (data.data.length === 0) {
+                        container.innerHTML = '<p class="text-muted">No runs found for this experiment</p>';
+                        return;
+                    }
+
+                    data.data.forEach(run => {
+                        const runItem = document.createElement('div');
+                        runItem.className = 'run-item';
+                        const duration = Math.round((new Date(run.endTime) - new Date(run.startTime)) / 1000);
+                        runItem.innerHTML = `
+                            <div class="row align-items-center">
+                                <div class="col-md-4">
+                                    <strong>${run.name}</strong>
+                                    <br>
+                                    <small class="text-muted">${run.id}</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <span class="status-badge badge bg-success">${run.status}</span>
+                                    <br>
+                                    <small class="text-muted">${duration}s</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted">${new Date(run.startTime).toLocaleString()}</small>
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="loadRunDetailsHandler('${run.id}', '${experimentName}')">
+                                        View Details
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(runItem);
+                    });
+
+                    // Load first run details
+                    if (data.data.length > 0) {
+                        loadRunDetails(data.data[0].id, experimentName);
+                    }
+                }
+            })
+            .catch(error => console.error('Error loading runs:', error));
+    }
+
+    function loadRunDetails(runId, experimentName = '') {
+        fetch(`/MLflowDashboard/GetRunDetails?runId=${runId}&experimentName=${experimentName}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const run = data.data;
+                    const container = document.getElementById('metricsContainer');
+                    container.innerHTML = '';
+
+                    // Display metrics
+                    const metricsHtml = `
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="metric-box">
+                                    <div class="metric-label">Accuracy</div>
+                                    <div class="metric-value">${(run.metrics.accuracy * 100).toFixed(2)}%</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-box">
+                                    <div class="metric-label">Precision</div>
+                                    <div class="metric-value">${(run.metrics.precision * 100).toFixed(2)}%</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-box">
+                                    <div class="metric-label">Recall</div>
+                                    <div class="metric-value">${(run.metrics.recall * 100).toFixed(2)}%</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="metric-box">
+                                    <div class="metric-label">F1 Score</div>
+                                    <div class="metric-value">${(run.metrics.f1_score * 100).toFixed(2)}%</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <h6>Parameters</h6>
+                                <table class="table table-sm">
+                                    ${Object.entries(run.parameters).map(([key, value]) => 
+                                        `<tr><td>${key}</td><td><code>${value}</code></td></tr>`
+                                    ).join('')}
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Artifacts</h6>
+                                <ul class="list-unstyled">
+                                    ${run.artifacts.map(artifact => 
+                                        `<li><i class="bi bi-file"></i> ${artifact}</li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML = metricsHtml;
+                }
+            })
+            .catch(error => console.error('Error loading run details:', error));
+    }
+
+    function loadRunDetailsHandler(runId, experimentName) {
+        loadRunDetails(runId, experimentName);
+    }
+</script>

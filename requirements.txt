@@ -10,6 +10,10 @@ keras>=2.15.0,<3.0.0
 
 # Data Processing
 scipy>=1.10.0,<1.15.0
+polars>=0.19.0,<1.0.0
+
+# MLOps & Experiment Tracking
+mlflow>=2.10.0,<3.0.0
 
 # Drift Monitoring
 nannyml>=0.10.0,<0.11.0

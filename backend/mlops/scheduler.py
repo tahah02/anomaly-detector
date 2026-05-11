@@ -4,6 +4,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from backend.mlops.retraining_pipeline import run_retraining
+from backend.mlops.mlflow_config import get_mlflow_config, EXPERIMENT_HYBRID
 from backend.db_service import get_db_service
 import json
 
@@ -16,6 +17,14 @@ _current_interval = None
 def run_drift_monitoring_job():
     try:
         logger.info("Starting scheduled drift monitoring...")
+        mlflow_config = get_mlflow_config()
+        
+        # Start MLflow run for drift monitoring
+        mlflow_config.start_run(
+            experiment_name="drift_monitoring",
+            run_name=f"drift_check_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            tags={"job_type": "scheduled_drift_monitoring"}
+        )
         
         from backend.mlops.drift_monitor import get_drift_monitor
         monitor = get_drift_monitor()
@@ -24,6 +33,8 @@ def run_drift_monitoring_job():
         
         if 'error' in results:
             logger.error(f"Drift monitoring failed: {results['error']}")
+            mlflow_config.log_metrics({"drift_monitoring_status": 0})
+            mlflow_config.end_run()
             return
         
         db = get_db_service()
@@ -35,6 +46,13 @@ def run_drift_monitoring_job():
         
         univariate = results.get('univariate_drift', {})
         features_affected = json.dumps(univariate.get('features_with_drift', []))
+        
+        # Log metrics to MLflow
+        mlflow_config.log_metrics({
+            "drift_monitoring_status": 1,
+            "drift_count": drift_count,
+            "features_with_drift": len(univariate.get('features_with_drift', []))
+        })
         
         db.save_drift_results(
             check_date=datetime.now(),
@@ -60,6 +78,10 @@ def run_drift_monitoring_job():
         logger.error(f"Error in drift monitoring job: {e}")
         import traceback
         traceback.print_exc()
+    
+    finally:
+        mlflow_config = get_mlflow_config()
+        mlflow_config.end_run()
 
 
 class MLOpsScheduler:

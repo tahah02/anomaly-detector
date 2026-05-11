@@ -6,6 +6,7 @@ import json
 
 from backend.mlops.data_fetcher import get_data_fetcher
 from backend.mlops.model_versioning import get_versioning
+from backend.mlops.mlflow_config import get_mlflow_config, EXPERIMENT_HYBRID
 from backend.feature_engineering import engineer_features
 from backend.train_isolation_forest import IsolationForestTrainer
 from backend.train_autoencoder import AutoencoderTrainer
@@ -19,6 +20,8 @@ class RetrainingPipeline:
         self.data_fetcher = get_data_fetcher()
         self.versioning = get_versioning()
         self.db = get_db_service()
+        self.mlflow_config = get_mlflow_config()
+        self.run_id = None
     
     def fetch_data(self, since_date: Optional[datetime] = None) -> pd.DataFrame:
         logger.info("STEP 1: Fetching training data...")
@@ -130,21 +133,69 @@ class RetrainingPipeline:
         logger.info("="*60 + "\n")
         
         try:
+            # Start MLflow run
+            run_name = f"retraining_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            self.mlflow_config.start_run(
+                experiment_name=EXPERIMENT_HYBRID,
+                run_name=run_name,
+                tags={"pipeline": "retraining", "auto_update": str(auto_update)}
+            )
+            
+            # Log pipeline parameters
+            self.mlflow_config.log_params({
+                "auto_update": auto_update,
+                "since_date": str(since_date) if since_date else "90_days_ago"
+            })
+            
             df = self.fetch_data(since_date)
             if df.empty:
                 raise Exception("No training data available")
+            
+            # Log data metrics
+            self.mlflow_config.log_metrics({
+                "data_records_fetched": len(df),
+                "data_shape_rows": df.shape[0],
+                "data_shape_cols": df.shape[1]
+            })
             
             df_engineered = self.engineer_features_step(df)
             if df_engineered.empty:
                 raise Exception("Feature engineering failed")
             
+            # Log engineered features metrics
+            self.mlflow_config.log_metrics({
+                "engineered_features_count": df_engineered.shape[1],
+                "engineered_data_rows": df_engineered.shape[0]
+            })
+            
             if_metrics = self.train_isolation_forest(df_engineered)
             if not if_metrics:
                 raise Exception("Isolation Forest training failed")
             
+            # Log Isolation Forest parameters
+            self.mlflow_config.log_params({
+                "model_type": "isolation_forest",
+                "contamination": 0.05,
+                "n_estimators": 100,
+                "random_state": 42
+            })
+            
+            # Log Isolation Forest metrics
+            self.mlflow_config.log_metrics(if_metrics)
+            
             ae_metrics = self.train_autoencoder(df_engineered)
             if not ae_metrics:
                 raise Exception("Autoencoder training failed")
+            
+            # Log Autoencoder parameters
+            self.mlflow_config.log_params({
+                "model_type": "autoencoder",
+                "k_factor": 3,
+                "random_state": 42
+            })
+            
+            # Log Autoencoder metrics (threshold is computed, not a parameter)
+            self.mlflow_config.log_metrics(ae_metrics)
             
             if not self.validate_models(if_metrics, ae_metrics):
                 raise Exception("Model validation failed")
@@ -153,6 +204,7 @@ class RetrainingPipeline:
             
             if not self.save_models(version, if_metrics, ae_metrics):
                 raise Exception("Model saving failed")
+            
             if auto_update:
                 if not self.update_version(version):
                     raise Exception("Version update failed")
@@ -161,6 +213,12 @@ class RetrainingPipeline:
                 logger.info(f"Version {version} saved. Manual selection required via config screen.")
             
             self.log_training_run(version, "SUCCESS", if_metrics, ae_metrics)
+            
+            # Log final metrics
+            self.mlflow_config.log_metrics({
+                "training_status": 1,  # 1 for success
+                "version_number": float(version.replace(".", ""))
+            })
             
             logger.info("\n" + "="*60)
             logger.info("RETRAINING PIPELINE COMPLETED SUCCESSFULLY")
@@ -174,7 +232,18 @@ class RetrainingPipeline:
             logger.error(f"\nRETRAINING PIPELINE FAILED: {e}\n")
             version = self.versioning.get_next_version()
             self.log_training_run(version, "FAILED", {}, {})
+            
+            # Log failure metrics
+            self.mlflow_config.log_metrics({
+                "training_status": 0,  # 0 for failure
+                "error": str(e)[:100]  # Log first 100 chars of error
+            })
+            
             return False
+        
+        finally:
+            # Always end MLflow run
+            self.mlflow_config.end_run()
 
 
 def get_pipeline() -> RetrainingPipeline:

@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 import joblib
+from backend.mlops.mlflow_config import get_mlflow_config, MODEL_ISOLATION_FOREST, MODEL_AUTOENCODER, MODEL_HYBRID
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ CURRENT_VERSION_FILE = os.path.join(MODEL_BASE_DIR, "current_version.txt")
 class ModelVersioning:
     def __init__(self):
         self._ensure_dirs()
+        self.mlflow_config = get_mlflow_config()
     
     def _ensure_dirs(self):
         os.makedirs(VERSIONS_DIR, exist_ok=True)
@@ -123,6 +125,55 @@ class ModelVersioning:
         except Exception as e:
             logger.error(f"Error listing versions: {e}")
             return []
+    
+    def register_model_in_registry(self, version: str, model_type: str, metrics: Dict[str, Any]) -> bool:
+        """Register model in MLflow Model Registry"""
+        try:
+            version_dir = os.path.join(VERSIONS_DIR, version, model_type)
+            model_path = os.path.join(version_dir, "model.pkl")
+            
+            if not os.path.exists(model_path):
+                logger.warning(f"Model file not found: {model_path}")
+                return False
+            
+            # Determine model name based on type
+            model_name = {
+                'isolation_forest': MODEL_ISOLATION_FOREST,
+                'autoencoder': MODEL_AUTOENCODER
+            }.get(model_type, MODEL_HYBRID)
+            
+            # Register model in MLflow
+            model_uri = f"file://{os.path.abspath(model_path)}"
+            self.mlflow_config.register_model(model_uri, model_name)
+            
+            logger.info(f"Registered {model_type} model v{version} in MLflow Registry")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error registering model in MLflow: {e}")
+            return False
+    
+    def get_model_registry_info(self, model_type: str) -> Optional[Dict]:
+        """Get model info from MLflow Model Registry"""
+        try:
+            model_name = {
+                'isolation_forest': MODEL_ISOLATION_FOREST,
+                'autoencoder': MODEL_AUTOENCODER
+            }.get(model_type, MODEL_HYBRID)
+            
+            model_version = self.mlflow_config.get_model_version(model_name, stage="Production")
+            if model_version:
+                return {
+                    'name': model_name,
+                    'version': model_version.version,
+                    'stage': model_version.current_stage,
+                    'created_timestamp': model_version.creation_timestamp,
+                    'last_updated_timestamp': model_version.last_updated_timestamp
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error getting model registry info: {e}")
+            return None
 
 
 def get_versioning() -> ModelVersioning:
