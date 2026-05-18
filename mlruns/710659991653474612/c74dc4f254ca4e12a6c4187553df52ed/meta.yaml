@@ -1,0 +1,15 @@
+artifact_uri: file:///D:\anomaly detector\mlruns/710659991653474612/c74dc4f254ca4e12a6c4187553df52ed/artifacts
+deleted_time: 1778845703405
+end_time: 1778845394860
+entry_point_name: ''
+experiment_id: '710659991653474612'
+lifecycle_stage: deleted
+run_id: c74dc4f254ca4e12a6c4187553df52ed
+run_name: autoencoder_only
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1778845394698
+status: 3
+tags: []
+user_id: CBTTahaHussain

@@ -1,0 +1,8 @@
+artifact_location: file:D:\anomaly detector\ConfigManagementUI\backend\mlops\mlruns/141682780783074204
+creation_time: 1778745632240
+experiment_id: '141682780783074204'
+last_update_time: 1778745632240
+lifecycle_stage: active
+name: drift_monitoring
+trace_location: null
+workspace: default

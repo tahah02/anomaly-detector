@@ -1,0 +1,14 @@
+artifact_uri: file:///D:\anomaly detector\mlruns/710659991653474612/e1d9328f13a54a1cbdd5f4bc2beb7c10/artifacts
+end_time: 1778846262941
+entry_point_name: ''
+experiment_id: '710659991653474612'
+lifecycle_stage: active
+run_id: e1d9328f13a54a1cbdd5f4bc2beb7c10
+run_name: autoencoder_base
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1778846262880
+status: 3
+tags: []
+user_id: CBTTahaHussain

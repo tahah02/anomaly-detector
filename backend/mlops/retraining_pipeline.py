@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 import pandas as pd
 import json
+import mlflow
 
 from backend.mlops.data_fetcher import get_data_fetcher
 from backend.mlops.model_versioning import get_versioning
@@ -121,6 +122,38 @@ class RetrainingPipeline:
             logger.info(f"Training run logged for version {version}")
         except Exception as e:
             logger.warning(f"Could not log training run: {e}")
+
+    def log_to_mlflow(self, version: str, status: str, if_metrics: Dict, ae_metrics: Dict, data_size: int):
+        try:
+            mlflow.set_experiment("anomaly_detector_pipeline")
+            with mlflow.start_run(run_name=f"retraining_pipeline_v{version}"):
+                mlflow.log_params({
+                    "model_version": version,
+                    "auto_update": False,
+                    "data_size": data_size
+                })
+                if if_metrics:
+                    mlflow.log_metrics({
+                        "if_anomaly_rate": if_metrics.get("anomaly_rate", 0),
+                        "if_anomaly_count": if_metrics.get("anomaly_count", 0),
+                        "if_n_samples": if_metrics.get("n_samples", 0),
+                        "if_n_features": if_metrics.get("n_features", 0)
+                    })
+                if ae_metrics:
+                    mlflow.log_metrics({
+                        "ae_threshold": ae_metrics.get("threshold", 0),
+                        "ae_reconstruction_mean": ae_metrics.get("mean", 0),
+                        "ae_reconstruction_std": ae_metrics.get("std", 0),
+                        "ae_n_samples": ae_metrics.get("n_samples", 0)
+                    })
+                mlflow.set_tags({
+                    "pipeline_status": status,
+                    "trained_at": datetime.now().isoformat(),
+                    "model_version": version
+                })
+            logger.info(f"MLFlow run logged for pipeline version {version}")
+        except Exception as e:
+            logger.warning(f"Could not log to MLFlow: {e}")
     
     def run(self, since_date: Optional[datetime] = None, auto_update: bool = False) -> bool:
         logger.info("\n" + "="*60)
@@ -161,6 +194,7 @@ class RetrainingPipeline:
                 logger.info(f"Version {version} saved. Manual selection required via config screen.")
             
             self.log_training_run(version, "SUCCESS", if_metrics, ae_metrics)
+            self.log_to_mlflow(version, "SUCCESS", if_metrics, ae_metrics, len(df))
             
             logger.info("\n" + "="*60)
             logger.info("RETRAINING PIPELINE COMPLETED SUCCESSFULLY")
@@ -174,6 +208,7 @@ class RetrainingPipeline:
             logger.error(f"\nRETRAINING PIPELINE FAILED: {e}\n")
             version = self.versioning.get_next_version()
             self.log_training_run(version, "FAILED", {}, {})
+            self.log_to_mlflow(version, "FAILED", {}, {}, 0)
             return False
 
 

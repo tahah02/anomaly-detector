@@ -1,0 +1,8 @@
+artifact_location: file:D:\anomaly detector\ConfigManagementUI\backend\mlops\mlruns/932824135489798535
+creation_time: 1778745632173
+experiment_id: '932824135489798535'
+last_update_time: 1778745632173
+lifecycle_stage: active
+name: hybrid_model_training
+trace_location: null
+workspace: default

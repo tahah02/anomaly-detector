@@ -1,0 +1,14 @@
+artifact_uri: file:///D:\anomaly detector\mlruns/710659991653474612/7edcb169a07c4f2f82cd30a02bc71d53/artifacts
+end_time: 1778846263030
+entry_point_name: ''
+experiment_id: '710659991653474612'
+lifecycle_stage: active
+run_id: 7edcb169a07c4f2f82cd30a02bc71d53
+run_name: hybrid_deployed_base
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1778846262951
+status: 3
+tags: []
+user_id: CBTTahaHussain

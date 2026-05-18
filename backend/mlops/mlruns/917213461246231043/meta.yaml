@@ -1,0 +1,8 @@
+artifact_location: file:D:\anomaly detector\backend\mlops\mlruns/917213461246231043
+creation_time: 1778503479174
+experiment_id: '917213461246231043'
+last_update_time: 1778503479174
+lifecycle_stage: active
+name: autoencoder_training
+trace_location: null
+workspace: default

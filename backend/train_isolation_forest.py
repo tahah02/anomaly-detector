@@ -6,6 +6,8 @@ from typing import Dict, Any, Optional
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from backend.utils import get_dynamic_model_features
+import mlflow
+import mlflow.sklearn
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -40,50 +42,74 @@ class IsolationForestTrainer:
     def train(self) -> Dict[str, Any]:
         logger.info("Starting Isolation Forest Training")
 
-        df = self.load_data()
-        
-        dynamic_features = get_dynamic_model_features()
-        
-        available_features = [f for f in dynamic_features if f in df.columns]
-        logger.info(f"Using {len(available_features)} features for training")
-        
-        X = df[available_features].fillna(0).values
-        n_samples, n_features = X.shape
+        mlflow.set_experiment("anomaly_detector")
 
-        self.fit_scaler(X)
-        X_scaled = self.scaler.transform(X)
+        with mlflow.start_run(run_name="isolation_forest_training"):
+            df = self.load_data()
+            
+            dynamic_features = get_dynamic_model_features()
+            available_features = [f for f in dynamic_features if f in df.columns]
+            logger.info(f"Using {len(available_features)} features for training")
+            
+            X = df[available_features].fillna(0).values
+            n_samples, n_features = X.shape
 
-        self.model = IsolationForest(
-            n_estimators=self.n_estimators,
-            contamination=self.contamination,
-            random_state=42,
-            n_jobs=-1
-        )
-        self.model.fit(X_scaled)
+            mlflow.log_params({
+                "n_estimators": self.n_estimators,
+                "contamination": self.contamination,
+                "n_features": n_features,
+                "random_state": 42
+            })
 
-        self._ensure_dir(self.MODEL_PATH)
-        model_data = {
-            'model': self.model,
-            'features': available_features,
-            'contamination': self.contamination,
-            'n_estimators': self.n_estimators,
-            'trained_at': datetime.now().isoformat()
-        }
-        joblib.dump(model_data, self.MODEL_PATH)
+            self.fit_scaler(X)
+            X_scaled = self.scaler.transform(X)
 
-        predictions = self.model.predict(X_scaled)
-        anomaly_count = np.sum(predictions == -1)
-        anomaly_rate = anomaly_count / len(predictions)
+            self.model = IsolationForest(
+                n_estimators=self.n_estimators,
+                contamination=self.contamination,
+                random_state=42,
+                n_jobs=-1
+            )
+            self.model.fit(X_scaled)
 
-        logger.info(f"Training done | Anomalies: {anomaly_count}/{len(predictions)} ({anomaly_rate:.2%})")
-        return {
-            'n_samples': n_samples,
-            'n_features': n_features,
-            'feature_list': available_features,
-            'anomaly_count': int(anomaly_count),
-            'anomaly_rate': float(anomaly_rate),
-            'contamination': self.contamination
-        }
+            self._ensure_dir(self.MODEL_PATH)
+            model_data = {
+                'model': self.model,
+                'features': available_features,
+                'contamination': self.contamination,
+                'n_estimators': self.n_estimators,
+                'trained_at': datetime.now().isoformat()
+            }
+            joblib.dump(model_data, self.MODEL_PATH)
+
+            predictions = self.model.predict(X_scaled)
+            anomaly_count = np.sum(predictions == -1)
+            anomaly_rate = anomaly_count / len(predictions)
+
+            mlflow.log_metrics({
+                "anomaly_rate": float(anomaly_rate),
+                "anomaly_count": int(anomaly_count),
+                "n_samples": n_samples,
+                "n_features": n_features
+            })
+
+            mlflow.log_artifact(self.MODEL_PATH)
+            mlflow.log_artifact(self.SCALER_PATH)
+
+            mlflow.set_tags({
+                "model_type": "isolation_forest",
+                "trained_at": datetime.now().isoformat()
+            })
+
+            logger.info(f"Training done | Anomalies: {anomaly_count}/{len(predictions)} ({anomaly_rate:.2%})")
+            return {
+                'n_samples': n_samples,
+                'n_features': n_features,
+                'feature_list': available_features,
+                'anomaly_count': int(anomaly_count),
+                'anomaly_rate': float(anomaly_rate),
+                'contamination': self.contamination
+            }
 
     def validate(self, X_scaled: np.ndarray, expected_anomaly_rate: float, tolerance=0.10):
         if self.model is None:

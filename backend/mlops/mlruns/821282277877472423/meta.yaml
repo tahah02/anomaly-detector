@@ -1,0 +1,8 @@
+artifact_location: file:D:\anomaly detector\backend\mlops\mlruns/821282277877472423
+creation_time: 1778503479144
+experiment_id: '821282277877472423'
+last_update_time: 1778503479144
+lifecycle_stage: active
+name: isolation_forest_training
+trace_location: null
+workspace: default

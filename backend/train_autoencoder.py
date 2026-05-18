@@ -6,6 +6,8 @@ from typing import Dict, Any, Optional
 from sklearn.preprocessing import StandardScaler
 from backend.autoencoder import TransactionAutoencoder
 from backend.utils import get_dynamic_model_features
+import mlflow
+import mlflow.sklearn
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -56,34 +58,62 @@ class AutoencoderTrainer:
     def train(self, epochs=100, batch_size=64) -> Dict[str, Any]:
         logger.info("Starting Autoencoder Training")
 
-        df = self.load_data()
-        
-        dynamic_features = get_dynamic_model_features()
-        
-        available_features = [f for f in dynamic_features if f in df.columns]
-        logger.info(f"Using {len(available_features)} features for training")
-        
-        X = df[available_features].fillna(0).values
-        n_samples, n_features = X.shape
+        mlflow.set_experiment("anomaly_detector")
 
-        self.fit_scaler(X)
-        Xs = self.scaler.transform(X)
+        with mlflow.start_run(run_name="autoencoder_training"):
+            df = self.load_data()
+            
+            dynamic_features = get_dynamic_model_features()
+            available_features = [f for f in dynamic_features if f in df.columns]
+            logger.info(f"Using {len(available_features)} features for training")
+            
+            X = df[available_features].fillna(0).values
+            n_samples, n_features = X.shape
 
-        self.autoencoder = TransactionAutoencoder(
-            input_dim=n_features,
-            encoding_dim=max(7, n_features // 2),
-            hidden_layers=[64, 32]
-        )
-        self.autoencoder.fit(Xs, epochs=epochs, batch_size=batch_size, verbose=1)
-        self._ensure_dir(self.MODEL_PATH)
-        self.autoencoder.save(self.MODEL_PATH)
+            mlflow.log_params({
+                "epochs": epochs,
+                "batch_size": batch_size,
+                "k": self.k,
+                "n_features": n_features,
+                "encoding_dim": max(7, n_features // 2),
+                "hidden_layers": "64,32"
+            })
 
-        errors = self.autoencoder.compute_reconstruction_error(Xs)
-        cfg = self.compute_threshold(errors)
-        self.save_threshold(cfg, n_samples, n_features, available_features)
+            self.fit_scaler(X)
+            Xs = self.scaler.transform(X)
 
-        logger.info(f"Training done | Threshold={cfg['threshold']:.6f}")
-        return {**cfg, 'n_samples': n_samples, 'n_features': n_features, 'feature_list': available_features}
+            self.autoencoder = TransactionAutoencoder(
+                input_dim=n_features,
+                encoding_dim=max(7, n_features // 2),
+                hidden_layers=[64, 32]
+            )
+            self.autoencoder.fit(Xs, epochs=epochs, batch_size=batch_size, verbose=1)
+            self._ensure_dir(self.MODEL_PATH)
+            self.autoencoder.save(self.MODEL_PATH)
+
+            errors = self.autoencoder.compute_reconstruction_error(Xs)
+            cfg = self.compute_threshold(errors)
+            self.save_threshold(cfg, n_samples, n_features, available_features)
+
+            mlflow.log_metrics({
+                "threshold": cfg['threshold'],
+                "reconstruction_error_mean": cfg['mean'],
+                "reconstruction_error_std": cfg['std'],
+                "n_samples": n_samples,
+                "n_features": n_features
+            })
+
+            mlflow.log_artifact(self.MODEL_PATH)
+            mlflow.log_artifact(self.SCALER_PATH)
+            mlflow.log_artifact(self.THRESHOLD_PATH)
+
+            mlflow.set_tags({
+                "model_type": "autoencoder",
+                "trained_at": datetime.now().isoformat()
+            })
+
+            logger.info(f"Training done | Threshold={cfg['threshold']:.6f}")
+            return {**cfg, 'n_samples': n_samples, 'n_features': n_features, 'feature_list': available_features}
 
     def validate(self, X_scaled: np.ndarray, expected_errors: np.ndarray, tol=0.01):
         ae = TransactionAutoencoder.load(self.MODEL_PATH)

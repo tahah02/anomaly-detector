@@ -14,6 +14,13 @@ scipy>=1.10.0,<1.15.0
 # Drift Monitoring
 nannyml>=0.10.0,<0.11.0
 
+# Feature Selection & Explainability
+mrmr-selection==0.2.8
+shap>=0.44.0,<0.46.0
+
+# MLFlow
+mlflow>=2.10.0,<2.15.0
+
 # API Framework
 fastapi>=0.104.0,<0.115.0
 uvicorn[standard]>=0.24.0,<0.32.0

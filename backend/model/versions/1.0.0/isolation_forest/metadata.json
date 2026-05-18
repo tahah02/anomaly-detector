@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "model_type": "isolation_forest",
+  "timestamp": "2026-05-11T17:46:45.202137",
+  "metrics": {
+    "accuracy": 0.95,
+    "precision": 0.92,
+    "recall": 0.88
+  }
+}
