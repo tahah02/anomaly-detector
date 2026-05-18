@@ -21,6 +21,11 @@ namespace ConfigManagementUI.Controllers
             return View();
         }
 
+        public IActionResult MLflowDashboard()
+        {
+            return RedirectToAction("Index", "MLflowDashboard");
+        }
+
         public async Task<IActionResult> Features()
         {
             var features = await _context.FeaturesConfig
@@ -192,6 +197,38 @@ namespace ConfigManagementUI.Controllers
 
         public async Task<IActionResult> TrainingRuns()
         {
+            try
+            {
+                // Get MLflow runs
+                var pythonScriptPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "get_mlflow_runs.py");
+                var processInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = $"\"{pythonScriptPath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = System.Diagnostics.Process.Start(processInfo);
+                if (process != null)
+                {
+                    var output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
+                    {
+                        ViewBag.MLflowRunsJson = output;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting MLflow runs: {ex.Message}");
+            }
+
+            // Also get database runs for backward compatibility
             var runs = await _context.ModelTrainingRuns
                 .OrderByDescending(r => r.RunDate)
                 .Take(100)
@@ -479,6 +516,48 @@ namespace ConfigManagementUI.Controllers
 
             TempData["SuccessMessage"] = "Configuration deleted successfully!";
             return RedirectToAction("CustomerConfigs");
+        }
+
+        public async Task<IActionResult> MLflowRuns()
+        {
+            try
+            {
+                var pythonScriptPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "get_mlflow_runs.py");
+                var processInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = $"\"{pythonScriptPath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = System.Diagnostics.Process.Start(processInfo);
+                if (process != null)
+                {
+                    var output = await process.StandardOutput.ReadToEndAsync();
+                    var error = await process.StandardError.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
+                    {
+                        ViewBag.RunsJson = output;
+                    }
+                    else
+                    {
+                        _logger.LogError($"Error getting MLflow runs: {error}");
+                        ViewBag.Error = $"Failed to load MLflow runs: {error}";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting MLflow runs: {ex.Message}");
+                ViewBag.Error = "Failed to load MLflow runs";
+            }
+
+            return View();
         }
     }
 }

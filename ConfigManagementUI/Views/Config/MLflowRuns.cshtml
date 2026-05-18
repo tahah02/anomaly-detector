@@ -1,0 +1,327 @@
+@{
+    ViewData["Title"] = "MLflow Runs";
+}
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1><i class="fas fa-flask me-2"></i>MLflow Training Runs</h1>
+            <p class="text-muted">View all model training runs tracked by MLflow</p>
+        </div>
+    </div>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Error:</strong> @ViewBag.Error
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Cards Container -->
+    <div id="runsContainer">
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Loading MLflow runs...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Run Details -->
+<div class="modal fade" id="runDetailsModal" tabindex="-1" aria-labelledby="runDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="runDetailsModalLabel">
+                    <i class="fas fa-info-circle me-2"></i>Run Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modalBodyContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <style>
+        .model-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+            height: 100%;
+        }
+        .model-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2) !important;
+            border-color: #0d6efd;
+        }
+        .model-card.hybrid-card {
+            border-left: 5px solid #198754;
+        }
+        .model-card.if-card {
+            border-left: 5px solid #0dcaf0;
+        }
+        .model-card.ae-card {
+            border-left: 5px solid #6f42c1;
+        }
+        .model-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .metric-badge {
+            font-size: 0.85rem;
+            padding: 0.4rem 0.8rem;
+            margin: 0.2rem;
+        }
+        .status-deployed {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const runsData = @Html.Raw(ViewBag.RunsJson ?? "null");
+            const container = document.getElementById('runsContainer');
+
+            if (!runsData) {
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        No data available. Please check if MLflow is configured correctly.
+                    </div>
+                `;
+                return;
+            }
+
+            if (!runsData.success) {
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle me-2"></i>
+                        <strong>Error:</strong> ${runsData.error || 'Unknown error occurred'}
+                    </div>
+                `;
+                return;
+            }
+
+            if (runsData.total_runs === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        ${runsData.message || 'No training runs found.'}
+                    </div>
+                `;
+                return;
+            }
+
+            // Filter for deployed models only
+            const deployedRuns = runsData.runs.filter(run => 
+                run.pipeline_status === 'DEPLOYED'
+            );
+
+            if (deployedRuns.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        No deployed models found. Total runs: ${runsData.total_runs}
+                    </div>
+                `;
+                return;
+            }
+
+            // Build cards
+            let cardsHtml = '<div class="row g-4">';
+
+            deployedRuns.forEach(run => {
+                const modelType = run.model_type || 'unknown';
+                let cardClass = 'model-card';
+                let icon = 'fa-cube';
+                let iconColor = 'text-primary';
+                let cardTitle = modelType.toUpperCase();
+
+                if (modelType === 'hybrid') {
+                    cardClass += ' hybrid-card';
+                    icon = 'fa-layer-group';
+                    iconColor = 'text-success';
+                    cardTitle = 'HYBRID MODEL';
+                } else if (modelType === 'isolation_forest') {
+                    cardClass += ' if-card';
+                    icon = 'fa-tree';
+                    iconColor = 'text-info';
+                    cardTitle = 'ISOLATION FOREST';
+                } else if (modelType === 'autoencoder') {
+                    cardClass += ' ae-card';
+                    icon = 'fa-brain';
+                    iconColor = 'text-purple';
+                    cardTitle = 'AUTOENCODER';
+                }
+
+                // Get key metrics
+                const keyMetrics = [];
+                if (run.metrics) {
+                    if (run.metrics.ae_threshold) {
+                        keyMetrics.push({ label: 'AE Threshold', value: run.metrics.ae_threshold.toFixed(4) });
+                    }
+                    if (run.metrics.threshold) {
+                        keyMetrics.push({ label: 'Threshold', value: run.metrics.threshold.toFixed(4) });
+                    }
+                    if (run.metrics.if_anomaly_rate) {
+                        keyMetrics.push({ label: 'Anomaly Rate', value: (run.metrics.if_anomaly_rate * 100).toFixed(2) + '%' });
+                    }
+                    if (run.metrics.anomaly_rate) {
+                        keyMetrics.push({ label: 'Anomaly Rate', value: (run.metrics.anomaly_rate * 100).toFixed(2) + '%' });
+                    }
+                    if (run.metrics.estimated_precision) {
+                        keyMetrics.push({ label: 'Precision', value: (run.metrics.estimated_precision * 100).toFixed(1) + '%' });
+                    }
+                }
+
+                cardsHtml += `
+                    <div class="col-md-4">
+                        <div class="card ${cardClass} shadow" onclick="showRunDetails('${run.run_id}')">
+                            <div class="card-body text-center">
+                                <div class="model-icon ${iconColor}">
+                                    <i class="fas ${icon}"></i>
+                                </div>
+                                <h4 class="card-title mb-3">${cardTitle}</h4>
+                                <div class="status-deployed mb-3">
+                                    <i class="fas fa-check-circle me-2"></i>DEPLOYED
+                                </div>
+                                <p class="text-muted mb-3">
+                                    <i class="fas fa-calendar me-2"></i>
+                                    Trained: ${run.start_time || 'N/A'}
+                                </p>
+                                <div class="mb-3">
+                                    ${keyMetrics.slice(0, 3).map(m => 
+                                        `<span class="badge bg-secondary metric-badge">${m.label}: ${m.value}</span>`
+                                    ).join('')}
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    <i class="fas fa-database me-1"></i>${run.params?.n_samples || 'N/A'} samples
+                                    <i class="fas fa-columns ms-2 me-1"></i>${run.params?.n_features || 'N/A'} features
+                                </p>
+                                <div class="mt-3">
+                                    <button class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-info-circle me-2"></i>View Details
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            cardsHtml += '</div>';
+
+            // Add summary
+            cardsHtml += `
+                <div class="mt-4 text-center">
+                    <p class="text-muted">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Showing <strong>${deployedRuns.length}</strong> deployed model(s) | 
+                        Total runs in MLflow: <strong>${runsData.total_runs}</strong>
+                    </p>
+                </div>
+            `;
+
+            container.innerHTML = cardsHtml;
+
+            // Store runs data globally for modal
+            window.mlflowRuns = runsData.runs;
+        });
+
+        function showRunDetails(runId) {
+            const run = window.mlflowRuns.find(r => r.run_id === runId);
+            if (!run) return;
+
+            const modalBody = document.getElementById('modalBodyContent');
+            const modelType = run.model_type || 'unknown';
+
+            let detailsHtml = `
+                <div class="mb-4">
+                    <h5><i class="fas fa-tag me-2"></i>Run Information</h5>
+                    <table class="table table-sm">
+                        <tr><th width="30%">Run ID:</th><td><code>${run.run_id}</code></td></tr>
+                        <tr><th>Run Name:</th><td>${run.run_name}</td></tr>
+                        <tr><th>Model Type:</th><td><span class="badge bg-info">${modelType}</span></td></tr>
+                        <tr><th>Status:</th><td><span class="badge bg-success">${run.status}</span></td></tr>
+                        <tr><th>Pipeline Status:</th><td><span class="badge bg-primary">${run.pipeline_status}</span></td></tr>
+                        <tr><th>Start Time:</th><td>${run.start_time || 'N/A'}</td></tr>
+                        <tr><th>Duration:</th><td>${run.duration_seconds ? run.duration_seconds + 's' : 'N/A'}</td></tr>
+                        <tr><th>Trained At:</th><td>${run.trained_at || 'N/A'}</td></tr>
+                        <tr><th>Version:</th><td><strong>${run.model_version || 'N/A'}</strong></td></tr>
+                    </table>
+                </div>
+
+                <div class="mb-4">
+                    <h5><i class="fas fa-chart-line me-2"></i>Metrics</h5>
+                    <div class="row">
+            `;
+
+            if (run.metrics && Object.keys(run.metrics).length > 0) {
+                Object.entries(run.metrics).forEach(([key, value]) => {
+                    detailsHtml += `
+                        <div class="col-md-6 mb-2">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <small class="text-muted">${key}</small>
+                                    <div class="fw-bold">${typeof value === 'number' ? value.toFixed(6) : value}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                detailsHtml += '<div class="col-12"><p class="text-muted">No metrics available</p></div>';
+            }
+
+            detailsHtml += `
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h5><i class="fas fa-cog me-2"></i>Parameters</h5>
+                    <div class="row">
+            `;
+
+            if (run.params && Object.keys(run.params).length > 0) {
+                Object.entries(run.params).forEach(([key, value]) => {
+                    detailsHtml += `
+                        <div class="col-md-6 mb-2">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <small class="text-muted">${key}</small>
+                                    <div class="fw-bold">${value}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                detailsHtml += '<div class="col-12"><p class="text-muted">No parameters available</p></div>';
+            }
+
+            detailsHtml += `
+                    </div>
+                </div>
+            `;
+
+            modalBody.innerHTML = detailsHtml;
+
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('runDetailsModal'));
+            modal.show();
+        }
+    </script>
+}
