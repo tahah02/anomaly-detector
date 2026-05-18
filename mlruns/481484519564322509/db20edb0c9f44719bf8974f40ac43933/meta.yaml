@@ -1,0 +1,14 @@
+artifact_uri: file:///D:/anomaly%20detector/mlruns/481484519564322509/db20edb0c9f44719bf8974f40ac43933/artifacts
+end_time: 1779092468529
+entry_point_name: ''
+experiment_id: '481484519564322509'
+lifecycle_stage: active
+run_id: db20edb0c9f44719bf8974f40ac43933
+run_name: pyod_lof_training
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1779092465695
+status: 3
+tags: []
+user_id: CBTTahaHussain

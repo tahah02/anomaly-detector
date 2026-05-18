@@ -1,0 +1,32 @@
+{
+  "model_type": "LOF",
+  "n_neighbors": 20,
+  "contamination": 0.1,
+  "threshold": 1.5031149188076407,
+  "features": [
+    "transaction_amount",
+    "flag_amount",
+    "channel_encoded",
+    "amount_to_max_ratio",
+    "rolling_std",
+    "transaction_velocity",
+    "amount_vs_weekly_avg",
+    "current_month_spending",
+    "amount_vs_monthly_avg",
+    "hourly_total",
+    "hourly_count",
+    "hour",
+    "is_weekend",
+    "is_night",
+    "time_since_last",
+    "recent_burst",
+    "txn_count_30s",
+    "txn_count_10min",
+    "txn_count_1hour",
+    "user_multiple_accounts_flag",
+    "geo_anomaly_flag",
+    "is_new_beneficiary",
+    "beneficiary_txn_count_30d"
+  ],
+  "trained_at": "2026-05-18T13:21:08.430246"
+}

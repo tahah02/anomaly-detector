@@ -33,7 +33,8 @@ def load_risk_config():
             'new_beneficiary': thresholds.get('RISK_SCORE_NEW_BENEFICIARY', 0.60),
             'default': thresholds.get('RISK_SCORE_DEFAULT', 0.75),
             'ml_boost': thresholds.get('ML_SCORE_BOOST', 0.15),
-            'ae_boost': thresholds.get('AE_SCORE_BOOST', 0.10)
+            'ae_boost': thresholds.get('AE_SCORE_BOOST', 0.10),
+            'pyod_boost': thresholds.get('PYOD_SCORE_BOOST', 0.10)
         }
     }
     
@@ -52,13 +53,15 @@ def calculate_risk_level(risk_score, config):
         return config['risk_levels']['safe']
 
 
-def calculate_confidence(rule_violated, ml_flag, ae_flag, risk_score, config):
-    flags = [rule_violated, ml_flag, ae_flag]
+def calculate_confidence(rule_violated, ml_flag, ae_flag, pyod_flag, risk_score, config):
+    flags = [rule_violated, ml_flag, ae_flag, pyod_flag]
     fraud_count = sum(flags)
     conf_config = config['confidence_calculation']
     
-    if fraud_count == 3:
+    if fraud_count == 4:
         confidence = conf_config['all_models_agree']
+    elif fraud_count == 3:
+        confidence = conf_config['all_models_agree'] - 0.05
     elif fraud_count == 2:
         confidence = conf_config['two_models_agree']
     elif fraud_count == 1:
@@ -72,7 +75,7 @@ def calculate_confidence(rule_violated, ml_flag, ae_flag, risk_score, config):
     return round(min(confidence, 1.0), 2)
 
 
-def make_decision(txn, user_stats, model, features, autoencoder=None):
+def make_decision(txn, user_stats, model, features, autoencoder=None, pyod_detector=None):
     config = load_risk_config()
     db = get_db_service()
     thresholds = get_thresholds()
@@ -93,8 +96,11 @@ def make_decision(txn, user_stats, model, features, autoencoder=None):
         "threshold": 0.0,
         "ml_flag": False,
         "ae_flag": False,
+        "pyod_flag": False,
         "ae_reconstruction_error": None,
         "ae_threshold": None,
+        "pyod_score": None,
+        "pyod_threshold": None,
     }
     violated, rule_reasons, threshold = check_rule_violation(
         amount=txn["amount"],
@@ -222,13 +228,91 @@ def make_decision(txn, user_stats, model, features, autoencoder=None):
                 result["reasons"].append(ae_result['reason'])
                 risk_score = risk_score + (ae_score * config['risk_scores']['ae_boost'])
 
+    if pyod_detector is not None:
+        amount = txn.get('amount', 0)
+        user_avg = user_stats.get('user_avg_amount', thresholds.get('DEFAULT_USER_AVG', 5000))
+        user_max = max(user_stats.get('user_max_amount', 1), 1)
+        weekly_avg = user_stats.get('user_weekly_avg_amount', 0)
+        monthly_avg = user_stats.get('monthly_avg_amount', user_avg)
+        time_since_last = txn.get('time_since_last_txn', thresholds.get('DEFAULT_TIME_SINCE_LAST', 3600))
+        recent_burst_threshold = thresholds.get('RECENT_BURST_THRESHOLD', 300)
+        
+        transfer_type_risk = {
+            'S': thresholds.get('TRANSFER_TYPE_RISK_S', 0.9),
+            'I': thresholds.get('TRANSFER_TYPE_RISK_I', 0.1),
+            'L': thresholds.get('TRANSFER_TYPE_RISK_L', 0.2),
+            'Q': thresholds.get('TRANSFER_TYPE_RISK_Q', 0.5),
+            'O': thresholds.get('TRANSFER_TYPE_RISK_O', 0.0),
+            'M': thresholds.get('TRANSFER_TYPE_RISK_M', 0.3),
+            'F': thresholds.get('TRANSFER_TYPE_RISK_F', 0.15),
+        }
+        
+        pyod_features = { 
+            'transaction_amount': amount,
+            'flag_amount': 1 if txn.get('transfer_type') == 'S' else 0,
+            'transfer_type_encoded': {'S': 4, 'I': 1, 'L': 2, 'Q': 3, 'O': 0}.get(txn.get('transfer_type', 'O'), 0),
+            'transfer_type_risk': transfer_type_risk.get(txn.get('transfer_type', 'O'), 0.5),
+            'channel_encoded': 0,
+            'deviation_from_avg': abs(amount - user_avg),
+            'amount_to_max_ratio': amount / user_max,
+            'rolling_std': user_stats.get('user_std_amount', 0),
+            'transaction_velocity': 3600 / max(time_since_last, 1),
+            'weekly_total': user_stats.get('user_weekly_total', 0),           
+            'weekly_txn_count': user_stats.get('user_weekly_txn_count', 0),       
+            'weekly_avg_amount': weekly_avg,      
+            'weekly_deviation': abs(amount - weekly_avg) if weekly_avg > 0 else 0,
+            'amount_vs_weekly_avg': amount / max(weekly_avg, 1) if weekly_avg > 0 else 1,
+            'current_month_spending': user_stats.get('current_month_spending', 0),
+            'monthly_txn_count': user_stats.get('monthly_txn_count', user_stats.get('user_txn_frequency', 0)),
+            'monthly_avg_amount': monthly_avg,
+            'monthly_deviation': abs(amount - monthly_avg),
+            'amount_vs_monthly_avg': amount / max(monthly_avg, 1),
+            'hourly_total': amount,
+            'hourly_count': 1,
+            'daily_total': amount,
+            'daily_count': 1,
+            'hour': datetime.now().hour,
+            'day_of_week': datetime.now().weekday(),
+            'is_weekend': 1 if datetime.now().weekday() >= 5 else 0,
+            'is_night': 1 if (datetime.now().hour < 6 or datetime.now().hour >= 22) else 0,
+            'time_since_last': time_since_last,
+            'recent_burst': 1 if time_since_last < recent_burst_threshold else 0,
+            'txn_count_30s': txn.get('txn_count_30s', 1),
+            'txn_count_10min': txn.get('txn_count_10min', 1),
+            'txn_count_1hour': txn.get('txn_count_1hour', 1),
+            'user_avg_amount': user_avg,
+            'user_std_amount': user_stats.get('user_std_amount', 0),
+            'user_max_amount': user_stats.get('user_max_amount', 0),
+            'user_txn_frequency': user_stats.get('user_txn_frequency', 0),
+            'intl_ratio': user_stats.get('user_international_ratio', 0),
+            'user_high_risk_txn_ratio': user_stats.get('user_high_risk_txn_ratio', 0.5),
+            'user_multiple_accounts_flag': 1 if user_stats.get('num_accounts', 1) > 1 else 0,
+            'cross_account_transfer_ratio': user_stats.get('cross_account_transfer_ratio', 0),
+            'geo_anomaly_flag': 1 if txn.get('bank_country', 'UAE') not in ['UAE', 'United Arab Emirates'] else 0,
+            'is_new_beneficiary': txn.get('is_new_beneficiary', 0),
+            'beneficiary_txn_count_30d': user_stats.get('beneficiary_txn_count_30d', 1),
+        }
+        
+        pyod_result = pyod_detector.score_transaction(pyod_features)
+        
+        if pyod_result is not None:
+            result["pyod_score"] = pyod_result['anomaly_score']
+            result["pyod_threshold"] = pyod_result['threshold']
+            pyod_score = pyod_result.get('normalized_score', 0)
+            
+            if pyod_result['is_anomaly']:
+                result["pyod_flag"] = True
+                result["is_fraud"] = True
+                result["reasons"].append(pyod_result['reason'])
+                risk_score = risk_score + (pyod_score * config['risk_scores'].get('pyod_boost', 0.10))
+
     result["risk_score"] = min(risk_score, 1.0)
     result["risk_level"] = calculate_risk_level(result["risk_score"], config)
     
     if result["is_fraud"] and result["risk_level"] == "SAFE":
         result["risk_level"] = "LOW"
     
-    result["confidence_level"] = calculate_confidence(violated, result["ml_flag"], result["ae_flag"], result["risk_score"], config)
-    result["model_agreement"] = round(sum([violated, result["ml_flag"], result["ae_flag"]]) / 3, 2)
+    result["confidence_level"] = calculate_confidence(violated, result["ml_flag"], result["ae_flag"], result["pyod_flag"], result["risk_score"], config)
+    result["model_agreement"] = round(sum([violated, result["ml_flag"], result["ae_flag"], result["pyod_flag"]]) / 4, 2)
 
     return result

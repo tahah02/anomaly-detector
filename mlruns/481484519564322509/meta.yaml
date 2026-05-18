@@ -1,0 +1,8 @@
+artifact_location: file:///D:/anomaly%20detector/mlruns/481484519564322509
+creation_time: 1779092465351
+experiment_id: '481484519564322509'
+last_update_time: 1779092465351
+lifecycle_stage: active
+name: anomaly_detector
+trace_location: null
+workspace: default

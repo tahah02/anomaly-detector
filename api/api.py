@@ -6,6 +6,7 @@ import json
 from backend.hybrid_decision import make_decision
 from backend.utils import load_model
 from backend.autoencoder import AutoencoderInference
+from backend.pyod_detector import PyODInference
 from backend.db_service import get_db_service
 from backend.mlops.scheduler import start_scheduler, stop_scheduler
 from backend.mlops.retraining_pipeline import run_retraining
@@ -20,6 +21,8 @@ db = get_db_service()
 model, features, scaler = load_model()
 autoencoder = AutoencoderInference()
 autoencoder.load()
+pyod_detector = PyODInference()
+pyod_detector.load()
 
 
 @app.on_event("startup")
@@ -48,7 +51,8 @@ def health_check():
         "timestamp": datetime.now().isoformat(),
         "models": {
             "isolation_forest": "loaded" if model else "unavailable",
-            "autoencoder": "loaded" if autoencoder else "unavailable"
+            "autoencoder": "loaded" if autoencoder else "unavailable",
+            "pyod": "loaded" if pyod_detector else "unavailable"
         },
         "database": {
             "status": db_status, **db_info
@@ -133,7 +137,7 @@ async def analyze_transaction(request: TransactionRequest, req: Request):
         "is_new_beneficiary": is_new_ben
     }
     
-    result = make_decision(txn, user_stats, model, features, autoencoder)
+    result = make_decision(txn, user_stats, model, features, autoencoder, pyod_detector)
     
     risk_level = result.get('risk_level', 'SAFE')
     if risk_level in ['HIGH', 'MEDIUM']:
@@ -154,6 +158,11 @@ async def analyze_transaction(request: TransactionRequest, req: Request):
             "reconstruction_error": result.get('ae_reconstruction_error'), 
             "threshold": result.get('ae_threshold'),
             "is_anomaly": result.get('ae_flag', False)
+        },
+        "pyod": {
+            "anomaly_score": result.get('pyod_score'),
+            "threshold": result.get('pyod_threshold'),
+            "is_anomaly": result.get('pyod_flag', False)
         }
     }
     
